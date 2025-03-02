@@ -1,7 +1,9 @@
 use anyhow::Result;
-use clap::Parser;
-use tokio::io::AsyncWriteExt;
 use tokio::net::windows::named_pipe::ClientOptions;
+use tokio::io::AsyncWriteExt;
+use clap::Parser;
+
+use crate::common;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -10,14 +12,11 @@ struct Cli {
     message: String,
 }
 
-const PIPE_NAME: &str = r"\\.\pipe\barvas-dns-service";
-
-#[tokio::main]
-async fn main() -> Result<()> {
+async fn send_message() -> Result<()> {
     let cli = Cli::parse();
     // Try to connect to the named pipe
     let mut client = ClientOptions::new()
-        .open(PIPE_NAME)?;
+        .open(common::strings::PIPE_NAME)?;
 
     // Write message to pipe
     client.write_all(cli.message.as_bytes()).await?;
@@ -25,3 +24,4 @@ async fn main() -> Result<()> {
     println!("Message sent to service.");
     Ok(())
 }
+
