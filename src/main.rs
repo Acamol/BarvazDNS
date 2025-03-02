@@ -12,7 +12,7 @@ enum Command {
     /// Service related commands
     Service(ServiceCommands),
     /// Client related commands
-    Client,
+    Client(ClientCommands),
 }
 
 #[derive(Parser, Debug)]
@@ -31,6 +31,59 @@ enum ServiceSubcommands {
     Start,
     /// Stop the service.
     Stop,
+}
+
+#[derive(Subcommand, Debug)]
+enum ClientSubcommands {
+    /// Sets the interval at which the service checks for and updates your public IP address, using human-readable time.
+    SetInterval {
+        #[arg(value_parser)]
+        interval: String,
+    },
+    /// Sets the authentication token used to update your DuckDNS domain.
+    SetToken {
+        #[arg(value_parser)]
+        token: String,
+    },
+    /// Adds a DuckDNS domain name that will be updated.
+    AddDomain {
+        #[arg(value_parser)]
+        domain: String,
+    },
+    RemoveDomain {
+        #[arg(value_parser)]
+        domain: String,
+    },
+    /// Sets the token, domain or interval.
+    Set(ClientSetArgs),
+    /// Sets configuration file path for persistent configuration (Defaults to $HOME/barvaz.toml).
+    SetConfigFile {
+        #[arg(value_parser, default_value_t = default_config_file())]
+        path: String,
+    },
+}
+
+fn default_config_file() -> String {
+    std::env::var("USERPROFILE").unwrap()
+}
+
+#[derive(Parser, Debug)]
+struct ClientSetArgs {
+    /// Sets the interval at which the service checks for and updates your public IP address, using human-readable time.
+    #[arg(short, long)]
+    interval: Option<String>,
+    /// Sets the authentication token used to update your DuckDNS domain.
+    #[arg(short, long)]
+    token: Option<String>,
+    /// Sets the DuckDNS domain name that will be updated.
+    #[arg(short, long)]
+    domain: Option<String>,
+}
+
+#[derive(Parser, Debug)]
+struct ClientCommands {
+    #[command(subcommand)]
+    command: ClientSubcommands,
 }
 
 #[derive(Parser, Debug)]
