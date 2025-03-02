@@ -1,4 +1,6 @@
 use clap::{Parser, Subcommand};
+use std::time::Duration;
+use humantime::parse_duration;
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
@@ -30,8 +32,8 @@ pub enum ServiceSubcommands {
 pub enum ClientSubcommands {
     /// Sets the interval at which the service checks for and updates your public IP address, using human-readable time.
     SetInterval {
-        #[arg(value_parser)]
-        interval: String,
+        #[arg(value_parser = parse_humantime_duration)]
+        interval: Duration,
     },
     /// Sets the authentication token used to update your DuckDNS domain.
     SetToken {
@@ -59,8 +61,8 @@ pub enum ClientSubcommands {
 #[derive(Parser, Debug)]
 pub struct ClientSetArgs {
     /// Sets the interval at which the service checks for and updates your public IP address, using human-readable time.
-    #[arg(short, long)]
-    interval: Option<String>,
+    #[arg(short, long, value_parser = parse_humantime_duration)]
+    interval: Option<Duration>,
     /// Sets the authentication token used to update your DuckDNS domain.
     #[arg(short, long)]
     token: Option<String>,
@@ -84,4 +86,8 @@ pub struct Cli {
 
 fn default_config_file() -> String {
     std::env::var("USERPROFILE").unwrap()
+}
+
+fn parse_humantime_duration(s: &str) -> Result<Duration, String> {
+    parse_duration(s).map_err(|e| e.to_string())
 }
