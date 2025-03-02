@@ -1,97 +1,14 @@
 mod service;
 mod service_manager;
-mod cli;
+mod client;
 mod common;
+mod arg_parser;
 
 use anyhow::Result;
-use clap::{Parser, CommandFactory, Subcommand};
+use clap::{Parser, CommandFactory};
 use std::process::exit;
+use crate::arg_parser::*;
 
-#[derive(Subcommand, Debug)]
-enum Command {
-    /// Service related commands
-    Service(ServiceCommands),
-    /// Client related commands
-    Client(ClientCommands),
-}
-
-#[derive(Parser, Debug)]
-struct ServiceCommands {
-    #[command(subcommand)]
-    command: ServiceSubcommands,
-}
-
-#[derive(Subcommand, Debug)]
-enum ServiceSubcommands {
-    /// Install the service.
-    Install,
-    /// Uninstall the service.
-    Uninstall,
-    /// Start the service.
-    Start,
-    /// Stop the service.
-    Stop,
-}
-
-#[derive(Subcommand, Debug)]
-enum ClientSubcommands {
-    /// Sets the interval at which the service checks for and updates your public IP address, using human-readable time.
-    SetInterval {
-        #[arg(value_parser)]
-        interval: String,
-    },
-    /// Sets the authentication token used to update your DuckDNS domain.
-    SetToken {
-        #[arg(value_parser)]
-        token: String,
-    },
-    /// Adds a DuckDNS domain name that will be updated.
-    AddDomain {
-        #[arg(value_parser)]
-        domain: String,
-    },
-    RemoveDomain {
-        #[arg(value_parser)]
-        domain: String,
-    },
-    /// Sets the token, domain or interval.
-    Set(ClientSetArgs),
-    /// Sets configuration file path for persistent configuration (Defaults to $HOME/barvaz.toml).
-    SetConfigFile {
-        #[arg(value_parser, default_value_t = default_config_file())]
-        path: String,
-    },
-}
-
-fn default_config_file() -> String {
-    std::env::var("USERPROFILE").unwrap()
-}
-
-#[derive(Parser, Debug)]
-struct ClientSetArgs {
-    /// Sets the interval at which the service checks for and updates your public IP address, using human-readable time.
-    #[arg(short, long)]
-    interval: Option<String>,
-    /// Sets the authentication token used to update your DuckDNS domain.
-    #[arg(short, long)]
-    token: Option<String>,
-    /// Sets the DuckDNS domain name that will be updated.
-    #[arg(short, long)]
-    domain: Option<String>,
-}
-
-#[derive(Parser, Debug)]
-struct ClientCommands {
-    #[command(subcommand)]
-    command: ClientSubcommands,
-}
-
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct Cli {
-    #[command(subcommand)]
-    command: Command,
-}
 
 fn handle_service_result(result: Result<()>, command: &str) {
     if let Err(e) = result {
@@ -118,13 +35,22 @@ fn main() -> Result<()> {
 
     match args.command {
         Command::Service(service_args) => 
-        match service_args.command {
-            ServiceSubcommands::Install => handle_service_result(service_manager::install_service(), "install"),
-            ServiceSubcommands::Uninstall => handle_service_result(service_manager::uninstall_service(), "uninstall"),
-            ServiceSubcommands::Start => handle_service_result(service_manager::start_service(), "start"),
-            ServiceSubcommands::Stop => handle_service_result(service_manager::stop_service(), "stop"),
+            match service_args.command {
+                ServiceSubcommands::Install => handle_service_result(service_manager::install_service(), "install"),
+                ServiceSubcommands::Uninstall => handle_service_result(service_manager::uninstall_service(), "uninstall"),
+                ServiceSubcommands::Start => handle_service_result(service_manager::start_service(), "start"),
+                ServiceSubcommands::Stop => handle_service_result(service_manager::stop_service(), "stop"),
+            }
+        Command::Client(client_args) => {
+            match client_args.command {
+                ClientSubcommands::SetInterval { interval } => unimplemented!(),
+                ClientSubcommands::SetToken { token } => unimplemented!(),
+                ClientSubcommands::AddDomain { domain } => unimplemented!(),
+                ClientSubcommands::RemoveDomain { domain } => unimplemented!(),
+                ClientSubcommands::SetConfigFile { path } => unimplemented!(),
+                ClientSubcommands::Set(set_args) => unimplemented!(),
+            }
         }
-        _ => unimplemented!(),
     }
 
     Ok(())
