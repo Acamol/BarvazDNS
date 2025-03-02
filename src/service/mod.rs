@@ -26,21 +26,48 @@ pub fn service_dispatcher() -> Result<()> {
 		.map_err(|e| anyhow!("Dispatching error: {e:#?}"))
 }
 
-fn logger_init(path: &Path) {
+use flexi_logger::{DeferredNow, Record};
+use std::io::Write;
+
+
+fn logger_init(path: &Path) -> Result<()> {
+    let log_formatter = |w: &mut dyn Write, now: &mut DeferredNow, record: &Record| -> Result<(), std::io::Error> {
+        write!(w,
+            "[{}] {}: {}",
+            now.now().format("%Y-%m-%d %H:%M:%S"),
+            record.level(),
+            record.args()
+        )
+    };
+
+    if !path.is_dir() {
+        return Err(anyhow!("{} is not a directory", path.to_str().unwrap_or_default()));
+    }
+
     Logger::try_with_str("info").unwrap()
     .log_to_file(FileSpec::default()
         .directory(path)
         .basename("barvaz")
         .suppress_timestamp())
     .write_mode(WriteMode::Direct)
+    .format_for_files(log_formatter)
     .append()
-    .start().unwrap();
+    .start().map(|_| ()).map_err(|e| anyhow!("{e}"))
 }
 
 fn service_main(args: Vec<OsString>) {
-	logger_init(Path::new(&args[0]));
+    if args.iter().count() < 2 {
+        // missing logger path
+        return;
+    }
 
-    let (shutdown_tx, shutdown_rx) = mpsc::channel();
+	if let Err(_) = logger_init(Path::new(&args[1])) {
+        return;
+    }
+
+    log::info!("Service has started.");
+
+    let (shutdown_tx, shutdown_rx) = mpsc::channel(); // TODO: switch to oneshot
 
     let event_handler = move |control_event| -> ServiceControlHandlerResult {
         match control_event {
@@ -148,6 +175,7 @@ fn run_service(status_handle: ServiceStatusHandle, shutdown_rx: mpsc::Receiver<(
     };
 
     status_handle.set_service_status(next_status)?;
+    log::info!("Service has stopped");
 
     Ok(())
 }

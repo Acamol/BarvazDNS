@@ -3,8 +3,9 @@ mod service_manager;
 mod cli;
 mod common;
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use clap::{Parser, CommandFactory, Subcommand};
+use std::process::exit;
 
 #[derive(Subcommand, Debug)]
 enum Command {
@@ -39,6 +40,13 @@ struct Cli {
     command: Command,
 }
 
+fn handle_service_result(result: Result<()>, command: &str) {
+    if let Err(e) = result {
+        eprintln!("Failed to execute {command}: {e}");
+        exit(1);
+    }
+}
+
 fn main() -> Result<()> {
     // check if we are in a start service context
     let num_args = std::env::args_os().count();
@@ -58,12 +66,10 @@ fn main() -> Result<()> {
     match args.command {
         Command::Service(service_args) => 
         match service_args.command {
-            ServiceSubcommands::Install => service_manager::install_service().unwrap(),
-            ServiceSubcommands::Uninstall => service_manager::uninstall_service().unwrap(),
-            ServiceSubcommands::Start => if let Err(e) = service_manager::start_service() {
-                return Err(anyhow!("Exited with {e}"));
-            }
-            ServiceSubcommands::Stop => service_manager::stop_service().unwrap(),
+            ServiceSubcommands::Install => handle_service_result(service_manager::install_service(), "install"),
+            ServiceSubcommands::Uninstall => handle_service_result(service_manager::uninstall_service(), "uninstall"),
+            ServiceSubcommands::Start => handle_service_result(service_manager::start_service(), "start"),
+            ServiceSubcommands::Stop => handle_service_result(service_manager::stop_service(), "stop"),
         }
         _ => unimplemented!(),
     }

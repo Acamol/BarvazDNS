@@ -1,3 +1,6 @@
+// TODO: remove once this is implemented
+#![allow(dead_code)]
+
 use anyhow::Result;
 use tokio::net::windows::named_pipe::ClientOptions;
 use tokio::io::AsyncWriteExt;
