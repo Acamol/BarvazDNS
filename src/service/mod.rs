@@ -13,7 +13,7 @@ use windows_service::{
 	service_dispatcher,
 };
 
-use crate::common;
+use crate::common::{self, message};
 
 mod named_pipe_extension;
 use named_pipe_extension::*;
@@ -44,7 +44,7 @@ fn logger_init(path: &Path) -> Result<()> {
         return Err(anyhow!("{} is not a directory", path.to_str().unwrap_or_default()));
     }
 
-    Logger::try_with_str("info").unwrap()
+    Logger::try_with_str("debug").unwrap()
     .log_to_file(FileSpec::default()
         .directory(path)
         .basename("barvaz")
@@ -111,14 +111,14 @@ async fn service_listening_loop() {
                 } 
                 log::debug!("Client connected");
 
-                let mut buffer = vec![0; 1024];
+                let mut buffer = vec![0; std::mem::size_of::<message>()];
                 match pipe.read_with_timeout(&mut buffer, Duration::from_secs(5)).await {
-                    Ok(0)  => {
+                    Ok(0) => {
                         log::debug!("Client disconnected");
                     }
-                    Ok(bytes_read) => {
-                        let message = String::from_utf8_lossy(&buffer[..bytes_read]);
-                        log::debug!("Received: {}", message);
+                    Ok(_bytes_read) => {
+                        let message = message::deserialize(&buffer).unwrap();
+                        log::debug!("Received: {:?}", message);
                     }
                     Err(e) => {
                         log::error!("Read error: {:?}", e);

@@ -17,7 +17,8 @@ fn handle_service_result(result: Result<()>, command: &str) {
     }
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     // check if we are in a start service context
     let num_args = std::env::args_os().count();
     if num_args == 1 {
@@ -43,7 +44,7 @@ fn main() -> Result<()> {
             }
         Command::Client(client_args) => {
             match client_args.command {
-                ClientSubcommands::SetInterval { interval } => unimplemented!(),
+                ClientSubcommands::SetInterval { interval } => client::set_interval(interval).await?,
                 ClientSubcommands::SetToken { token } => unimplemented!(),
                 ClientSubcommands::AddDomain { domain } => unimplemented!(),
                 ClientSubcommands::RemoveDomain { domain } => unimplemented!(),

@@ -1,30 +1,23 @@
-// TODO: remove once this is implemented
-#![allow(dead_code)]
+use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use tokio::net::windows::named_pipe::ClientOptions;
 use tokio::io::AsyncWriteExt;
-use clap::Parser;
 
-use crate::common;
+use crate::common::{self, message};
 
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct Cli {
-    #[arg(short, long)]
-    message: String,
-}
 
-async fn send_message() -> Result<()> {
-    let cli = Cli::parse();
+pub async fn set_interval(duration: Duration) -> Result<()> {
     // Try to connect to the named pipe
     let mut client = ClientOptions::new()
-        .open(common::strings::PIPE_NAME)?;
+        .open(common::strings::PIPE_NAME)
+        .map_err(|_| anyhow!("Failed to communicate with the service. Verify it is running."))?;
 
-    // Write message to pipe
-    client.write_all(cli.message.as_bytes()).await?;
+    let msg = message::new(duration);
+    let encode = msg.serialize()?;
+
+    client.write_all(&encode).await?;
 
     println!("Message sent to service.");
     Ok(())
 }
-
