@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Result};
 use flexi_logger::{FileSpec, Logger, WriteMode};
 use std::ffi::OsString;
-use std::path::Path;
 use std::time::Duration;
 use std::sync::mpsc;
 use tokio::runtime::Runtime;
@@ -13,8 +12,9 @@ use windows_service::{
 	service_dispatcher,
 };
 
-use crate::common::{self, Message};
+use crate::common::{self, config::Config, message::Message};
 
+mod config;
 mod named_pipe_extension;
 use named_pipe_extension::*;
 
@@ -30,7 +30,7 @@ use flexi_logger::{DeferredNow, Record};
 use std::io::Write;
 
 
-fn logger_init(path: &Path) -> Result<()> {
+fn logger_init() -> Result<()> {
     let log_formatter = |w: &mut dyn Write, now: &mut DeferredNow, record: &Record| -> Result<(), std::io::Error> {
         write!(w,
             "[{}] {}: {}",
@@ -40,11 +40,15 @@ fn logger_init(path: &Path) -> Result<()> {
         )
     };
 
+    let path = Config::get_config_directory_path()?;
+
     if !path.is_dir() {
         return Err(anyhow!("{} is not a directory", path.to_str().unwrap_or_default()));
     }
 
-    Logger::try_with_str("debug").unwrap()
+    let level = std::env::var(common::strings::ENV_VAR_LOG_LEVEL).unwrap_or("info".to_string());
+
+    Logger::try_with_str(&level).unwrap()
     .log_to_file(FileSpec::default()
         .directory(path)
         .basename("barvaz")
@@ -55,18 +59,7 @@ fn logger_init(path: &Path) -> Result<()> {
     .start().map(|_| ()).map_err(|e| anyhow!("{e}"))
 }
 
-fn service_main(args: Vec<OsString>) {
-    if args.iter().count() < 2 {
-        // missing logger path
-        return;
-    }
-
-	if let Err(_) = logger_init(Path::new(&args[1])) {
-        return;
-    }
-
-    log::info!("Service has started.");
-
+fn service_main(_args: Vec<OsString>) {
     let (shutdown_tx, shutdown_rx) = mpsc::channel(); // TODO: switch to oneshot
 
     let event_handler = move |control_event| -> ServiceControlHandlerResult {
@@ -89,26 +82,40 @@ fn service_main(args: Vec<OsString>) {
         controls_accepted: ServiceControlAccept::empty(),
         exit_code: ServiceExitCode::Win32(0),
         checkpoint: 0,
-        wait_hint: Duration::from_secs(30),
+        wait_hint: Duration::from_secs(10),
         process_id: None,
     };
 
 	status_handle.set_service_status(next_status).unwrap();
 
-    if let Err(e) = run_service(status_handle, shutdown_rx) {
+    // also creates the app directory if it does not exist yet
+    let config = match config::read() {
+        Ok(c) => c,
+        Err(_) => return, // TODO: update status
+    };
+
+	if let Err(_) = logger_init() {
+        return; // TODO: update status
+    }
+    
+    log::debug!("Service is running with the following configuration:\n{config}");
+
+    if let Err(e) = run_service(status_handle, shutdown_rx, config) {
         log::error!("Service failed: {:?}", e);
     }
 }
 
-fn handle_message(msg: &Message) -> Result<()> {
+fn handle_message(msg: &Message, _config: &Config) -> Result<()> {
     log::debug!("Received: {:?}", msg);
 
     match msg {
-        _ => unimplemented!(),
+        _ => (),
     }
+
+    Ok(())
 }
 
-async fn service_listening_loop() {
+async fn service_listening_loop(config: Config) {
     loop {
         match ServerOptions::new().create(common::strings::PIPE_NAME) {
             Ok(mut pipe) => {
@@ -132,7 +139,7 @@ async fn service_listening_loop() {
                                 continue;
                             }
                         };
-                        if let Err(e) = handle_message(&msg) {
+                        if let Err(e) = handle_message(&msg, &config) {
                             log::error!("Failed to handle {msg:?}, error: {e}");
                         }
                     }
@@ -148,9 +155,7 @@ async fn service_listening_loop() {
     }
 }
 
-fn run_service(status_handle: ServiceStatusHandle, shutdown_rx: mpsc::Receiver<()>) -> Result<()> {
-    log::debug!("service has started");
-
+fn run_service(status_handle: ServiceStatusHandle, shutdown_rx: mpsc::Receiver<()>, config: Config) -> Result<()> {
     let next_status = ServiceStatus {
         service_type: ServiceType::OWN_PROCESS,
         current_state: ServiceState::Running,
@@ -166,7 +171,7 @@ fn run_service(status_handle: ServiceStatusHandle, shutdown_rx: mpsc::Receiver<(
 
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
-        let listening_loop_handle = tokio::spawn(service_listening_loop());
+        let listening_loop_handle = tokio::spawn(service_listening_loop(config));
         let shutdown_handle = tokio::spawn(async move {shutdown_rx.recv().unwrap();});
 
         tokio::select! {

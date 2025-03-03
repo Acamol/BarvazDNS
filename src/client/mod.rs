@@ -4,7 +4,7 @@ use anyhow::{Result, anyhow};
 use tokio::net::windows::named_pipe::ClientOptions;
 use tokio::io::AsyncWriteExt;
 
-use crate::common::{self, Message};
+use crate::common::{self, message::Message};
 
 async fn send_message(msg: Message) -> Result<()> {
     // Try to connect to the named pipe

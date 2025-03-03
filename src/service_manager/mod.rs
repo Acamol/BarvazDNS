@@ -82,13 +82,7 @@ pub fn start_service() -> Result<()> {
     let service_access = ServiceAccess::START;
     let service = service_manager.open_service(SERVICE_NAME, service_access)?;
 
-    let log_path = if let Some(path) = std::env::var_os("BARVAZ_LOG_FILE") {
-        path
-    } else {
-        return Err(anyhow::anyhow!("BARVAZ_LOG_FILE is not configured"));
-    };
-
-    service.start::<OsString>(&[log_path]).map_err(|e| {
+    service.start::<OsString>(&[]).map_err(|e| {
         match e {
             windows_service::Error::Winapi(win_err) => {
                 anyhow!("code {}", win_err.raw_os_error().unwrap_or_default())
