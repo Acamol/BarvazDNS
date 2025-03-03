@@ -51,11 +51,6 @@ pub enum ClientSubcommands {
     },
     /// Sets the token, domain or interval.
     Set(ClientSetArgs),
-    /// Sets configuration file path for persistent configuration (Defaults to $HOME/barvaz.toml).
-    SetConfigFile {
-        #[arg(value_parser, default_value_t = default_config_file())]
-        path: String,
-    },
 }
 
 #[derive(Parser, Debug)]
@@ -82,10 +77,6 @@ pub struct ClientCommands {
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
-}
-
-fn default_config_file() -> String {
-    std::env::var("USERPROFILE").unwrap()
 }
 
 fn parse_humantime_duration(s: &str) -> Result<Duration, String> {

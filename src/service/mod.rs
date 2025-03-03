@@ -13,7 +13,7 @@ use windows_service::{
 	service_dispatcher,
 };
 
-use crate::common::{self, message};
+use crate::common::{self, Message};
 
 mod named_pipe_extension;
 use named_pipe_extension::*;
@@ -100,6 +100,14 @@ fn service_main(args: Vec<OsString>) {
     }
 }
 
+fn handle_message(msg: &Message) -> Result<()> {
+    log::debug!("Received: {:?}", msg);
+
+    match msg {
+        _ => unimplemented!(),
+    }
+}
+
 async fn service_listening_loop() {
     loop {
         match ServerOptions::new().create(common::strings::PIPE_NAME) {
@@ -111,14 +119,22 @@ async fn service_listening_loop() {
                 } 
                 log::debug!("Client connected");
 
-                let mut buffer = vec![0; std::mem::size_of::<message>()];
+                let mut buffer = vec![0; std::mem::size_of::<Message>()];
                 match pipe.read_with_timeout(&mut buffer, Duration::from_secs(5)).await {
                     Ok(0) => {
                         log::debug!("Client disconnected");
                     }
                     Ok(_bytes_read) => {
-                        let message = message::deserialize(&buffer).unwrap();
-                        log::debug!("Received: {:?}", message);
+                        let msg = match Message::deserialize(&buffer) {
+                            Ok(m) => m,
+                            Err(e) => {
+                                log::error!("Failed to deserialize message, error: {e}");
+                                continue;
+                            }
+                        };
+                        if let Err(e) = handle_message(&msg) {
+                            log::error!("Failed to handle {msg:?}, error: {e}");
+                        }
                     }
                     Err(e) => {
                         log::error!("Read error: {:?}", e);

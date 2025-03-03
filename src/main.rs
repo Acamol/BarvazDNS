@@ -45,11 +45,10 @@ async fn main() -> Result<()> {
         Command::Client(client_args) => {
             match client_args.command {
                 ClientSubcommands::SetInterval { interval } => client::set_interval(interval).await?,
-                ClientSubcommands::SetToken { token } => unimplemented!(),
-                ClientSubcommands::AddDomain { domain } => unimplemented!(),
-                ClientSubcommands::RemoveDomain { domain } => unimplemented!(),
-                ClientSubcommands::SetConfigFile { path } => unimplemented!(),
-                ClientSubcommands::Set(set_args) => unimplemented!(),
+                ClientSubcommands::SetToken { token } => client::set_token(token).await?,
+                ClientSubcommands::AddDomain { domain } => client::add_domain(domain).await?,
+                ClientSubcommands::RemoveDomain { domain } => client::remove_domain(domain).await?,
+                ClientSubcommands::Set(_set_args) => unimplemented!(),
             }
         }
     }

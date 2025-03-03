@@ -7,20 +7,19 @@ use serde::{Deserialize, Serialize};
 pub mod strings;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum message {
+pub enum Message {
 	Interval(Duration),
+	Token(String),
+	AddDomain(String),
+	RemoveDomain(String),
 }
 
-impl message {
-	pub fn new(interval: Duration) -> Self {
-		message::Interval(interval)
-	}
-
+impl Message {
 	pub fn serialize(&self) -> Result<Vec<u8>> {
 		serialize(&self).map_err(|e| anyhow!("{e}"))
 	}
 
 	pub fn deserialize(bytes: &Vec<u8>) -> Result<Self> {
-		deserialize::<message>(bytes).map_err(|e| anyhow!("{e}"))
+		deserialize::<Message>(bytes).map_err(|e| anyhow!("{e}"))
 	}
 }
