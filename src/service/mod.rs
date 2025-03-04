@@ -51,7 +51,7 @@ fn logger_init() -> Result<()> {
     Logger::try_with_str(&level).unwrap()
     .log_to_file(FileSpec::default()
         .directory(path)
-        .basename("barvaz")
+        .basename(common::strings::LOG_FILE_BASENAME)
         .suppress_timestamp())
     .write_mode(WriteMode::Direct)
     .format_for_files(log_formatter)

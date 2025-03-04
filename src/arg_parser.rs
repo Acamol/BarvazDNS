@@ -2,6 +2,8 @@ use clap::{Parser, Subcommand};
 use std::time::Duration;
 use humantime::parse_duration;
 
+use crate::common;
+
 #[derive(Subcommand, Debug)]
 pub enum Command {
     /// Service related commands
@@ -73,7 +75,7 @@ pub struct ClientCommands {
 }
 
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None, before_help = common::strings::LOGO)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
