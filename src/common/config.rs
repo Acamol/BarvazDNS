@@ -10,7 +10,7 @@ use anyhow::{Result, anyhow};
 use crate::common;
 
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct ServiceConfig {
 	pub token: Option<String>,
 	#[serde(default)]
@@ -19,10 +19,10 @@ pub struct ServiceConfig {
 	pub interval: Duration,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct ClientConfig { }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Config {
 	pub service: ServiceConfig,
 	pub client: ClientConfig,

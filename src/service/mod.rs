@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use flexi_logger::{FileSpec, Logger, WriteMode};
 use std::ffi::OsString;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::sync::mpsc;
 use tokio::runtime::Runtime;
 use tokio::net::windows::named_pipe::ServerOptions;
@@ -14,6 +14,7 @@ use windows_service::{
 
 use crate::common::{self, config::Config, message::Message};
 
+mod duckdns;
 mod config;
 mod named_pipe_extension;
 use named_pipe_extension::*;
@@ -109,11 +110,12 @@ fn service_main(_args: Vec<OsString>) {
     }
 }
 
-fn handle_message(msg: &Message, config: &mut Config) -> Result<()> {
+fn handle_message(msg: &Message, config: &mut Config, update_tx: &mpsc::Sender<Config>) -> Result<()> {
     log::debug!("Received: {:?}", msg);
 
     match msg {
         Message::Interval(interval) => {
+            // TODO: limit minimal interval
             config.service.interval = interval.clone();
             Ok(())
         }
@@ -140,12 +142,13 @@ fn handle_message(msg: &Message, config: &mut Config) -> Result<()> {
     }?;
 
     config.store()?;
+    update_tx.send(config.clone())?;
 
     log::debug!("New config:\n{config}");
     Ok(())
 }
 
-async fn service_listening_loop(mut config: Config) {
+async fn service_listening_loop(mut config: Config, update_tx: mpsc::Sender<Config>) {
     loop {
         match ServerOptions::new().create(common::strings::PIPE_NAME) {
             Ok(mut pipe) => {
@@ -169,7 +172,7 @@ async fn service_listening_loop(mut config: Config) {
                                 continue;
                             }
                         };
-                        if let Err(e) = handle_message(&msg, &mut config) {
+                        if let Err(e) = handle_message(&msg, &mut config, &update_tx) {
                             log::error!("Failed to handle {msg:?}, error: {e}");
                         }
                     }
@@ -185,7 +188,37 @@ async fn service_listening_loop(mut config: Config) {
     }
 }
 
+async fn update_ip_loop(receiver: mpsc::Receiver<Config>, initial_config: Config) {
+    let mut config = initial_config;
+    let mut last_run = Instant::now();
+
+    loop {
+        if let Ok(c) = receiver.try_recv() {
+            config = c;
+        }
+
+        if config.service.token.is_none() {
+            log::debug!("No token is configured");
+            continue;
+        }
+
+        if config.service.domain.is_empty() {
+            log::debug!("No domain is conifgured");
+            continue;
+        }
+
+        if last_run.elapsed() >= config.service.interval {
+            duckdns::update(&config).await;
+            last_run = Instant::now();
+        }
+
+        // let other tasks a chance to advance too
+        tokio::task::yield_now().await;
+    }
+}
+
 fn run_service(status_handle: ServiceStatusHandle, shutdown_rx: mpsc::Receiver<()>, config: Config) -> Result<()> {
+    let (update_tx, update_rx) = mpsc::channel();
     let next_status = ServiceStatus {
         service_type: ServiceType::OWN_PROCESS,
         current_state: ServiceState::Running,
@@ -202,8 +235,9 @@ fn run_service(status_handle: ServiceStatusHandle, shutdown_rx: mpsc::Receiver<(
 
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
-        let listening_loop_handle = tokio::spawn(service_listening_loop(config));
+        let listening_loop_handle = tokio::spawn(service_listening_loop(config.clone(), update_tx));
         let shutdown_handle = tokio::spawn(async move {shutdown_rx.recv().unwrap();});
+        let update_ip_handle = tokio::spawn(update_ip_loop(update_rx, config.clone()));
 
         tokio::select! {
             _ = listening_loop_handle => {
@@ -211,6 +245,9 @@ fn run_service(status_handle: ServiceStatusHandle, shutdown_rx: mpsc::Receiver<(
             }
             _ = shutdown_handle => {
                 log::debug!("shutdown has been initiated");
+            }
+            _ = update_ip_handle => {
+                log::error!("Cannot update DuckDNS")
             }
         }
     });
