@@ -20,7 +20,7 @@ use crate::common::{self, config::Config, message::Message};
 mod duckdns;
 mod config;
 mod named_pipe_extension;
-use named_pipe_extension::*;
+use named_pipe_extension::NamedPipeServerWithTimeout;
 
 define_windows_service!(duckdns_service_main, service_main);
 
