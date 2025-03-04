@@ -91,13 +91,17 @@ fn service_main(_args: Vec<OsString>) {
     // also creates the app directory if it does not exist yet
     let config = match config::read() {
         Ok(c) => c,
-        Err(_) => return, // TODO: update status
+        Err(_) => {
+            todo!("update status")
+        }
     };
 
 	if let Err(_) = logger_init() {
-        return; // TODO: update status
+        todo!("update status");
+        #[allow(unreachable_code)]
+        return;
     }
-    
+
     log::debug!("Service is running with the following configuration:\n{config}");
 
     if let Err(e) = run_service(status_handle, shutdown_rx, config) {
@@ -135,6 +139,8 @@ fn handle_message(msg: &Message, config: &mut Config) -> Result<()> {
         }
     }?;
 
+    config.store()?;
+
     log::debug!("New config:\n{config}");
     Ok(())
 }
@@ -144,14 +150,14 @@ async fn service_listening_loop(mut config: Config) {
         match ServerOptions::new().create(common::strings::PIPE_NAME) {
             Ok(mut pipe) => {
                 log::debug!("Waiting for a client...");
-                if let Err(e) = pipe.connect_with_timeout(Duration::from_secs(5)).await {
+                if let Err(e) = pipe.connect_with_timeout(Duration::from_secs(common::consts::PIPE_TIMEOUT_IN_SEC)).await {
                     log::debug!("Pipe connection error: {:?}", e);
                     continue;
                 } 
                 log::debug!("Client connected");
 
                 let mut buffer = vec![0; std::mem::size_of::<Message>()];
-                match pipe.read_with_timeout(&mut buffer, Duration::from_secs(5)).await {
+                match pipe.read_with_timeout(&mut buffer, Duration::from_secs(common::consts::PIPE_TIMEOUT_IN_SEC)).await {
                     Ok(0) => {
                         log::debug!("Client disconnected");
                     }

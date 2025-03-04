@@ -57,17 +57,15 @@ impl Config {
 		let config_file_path = Self::get_config_file_path()?;
 
 		// create the config file if it does not exist
-		let mut config_file =
-			if !config_file_path.is_file() {
-				fs::File::create(&config_file_path)
-					.map_err(|e| anyhow!("Failed to create config file: {}", e))?
-			} else {
-				fs::File::open(&config_file_path)?
-			};
+		let mut config_file = fs::OpenOptions::new()
+			.write(true)
+			.create(true)
+			.truncate(true)
+			.open(&config_file_path)?;
 
 		config_file
 			.write_all(toml::to_string_pretty(self)?.as_bytes())
-				.map_err(|e| anyhow!("Failed to write config file: {}", e))?;
+				.map_err(|e| anyhow!("Failed to write config file: {e}"))?;
 
 		Ok(())
 	}
