@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 use std::fs;
-use std::io::Write;
 
 use anyhow::{Result, anyhow};
 
@@ -21,23 +20,10 @@ fn install_config_file(config_path: &PathBuf) -> Result<Config> {
 		log::info!("Created the config directory in {config_path:?}");
 	}
 
-    let config_file_path = Config::get_config_file_path()?;
-	let mut config_file = if !config_file_path.is_file() {
-		fs::File::create(&config_file_path)
-			.map_err(|e| anyhow!("Failed to create config file: {}", e))
-			.map(|file| {
-				log::info!("Created the config file at {config_file_path:?}");
-				file
-			})?
-	} else {
-		fs::File::open(&config_file_path)?
-	};
-
 	let config: Config = toml::from_str(common::strings::DEFAULT_CONFIG_CONTENT)?;
 
-    config_file
-        .write_all(toml::to_string_pretty(&config)?.as_bytes())
-			.map_err(|e| anyhow!("Failed to write config file: {}", e))?;
+	// store the configuration in the config file
+	config.store()?;
 
     Ok(config)
 }

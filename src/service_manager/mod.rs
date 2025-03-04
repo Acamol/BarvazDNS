@@ -26,9 +26,9 @@ pub fn install_service() -> Result<()> {
         start_type: ServiceStartType::OnDemand, // TODO: later should be changed
         error_control: ServiceErrorControl::Normal,
         executable_path: service_binary_path,
-        launch_arguments: vec![/*OsString::from("run_service")*/],
+        launch_arguments: vec![],
         dependencies: vec![],
-        account_name: None, // run as System
+        account_name: None,
         account_password: None,
     };
     let service = service_manager.create_service(&service_info, ServiceAccess::CHANGE_CONFIG)?;

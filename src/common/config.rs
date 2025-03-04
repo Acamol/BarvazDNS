@@ -1,7 +1,8 @@
-use std::fmt;
+use std::io::Write;
+use std::{collections::HashSet, fmt};
 use std::time::Duration;
 use std::path::PathBuf;
-use std::env;
+use std::{env, fs};
 
 use serde::{Deserialize, Serialize};
 use anyhow::{Result, anyhow};
@@ -13,7 +14,7 @@ use crate::common;
 pub struct ServiceConfig {
 	pub token: Option<String>,
 	#[serde(default)]
-	pub domain: Vec<String>,
+	pub domain: HashSet<String>,
 	#[serde(with = "humantime_serde")]
 	pub interval: Duration,
 }
@@ -50,5 +51,24 @@ impl Config {
 		path.push(common::strings::CONFIG_DIR);
 		path.push(common::strings::CONFIG_FILE_NAME);
 		Ok(path)
+	}
+
+	pub fn store(&self) -> Result<()> {
+		let config_file_path = Self::get_config_file_path()?;
+
+		// create the config file if it does not exist
+		let mut config_file =
+			if !config_file_path.is_file() {
+				fs::File::create(&config_file_path)
+					.map_err(|e| anyhow!("Failed to create config file: {}", e))?
+			} else {
+				fs::File::open(&config_file_path)?
+			};
+
+		config_file
+			.write_all(toml::to_string_pretty(self)?.as_bytes())
+				.map_err(|e| anyhow!("Failed to write config file: {}", e))?;
+
+		Ok(())
 	}
 }

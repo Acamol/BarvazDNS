@@ -1,0 +1,1 @@
+pub const DOMAIN_LENGTH_LIMIT: usize = 5;

@@ -105,17 +105,41 @@ fn service_main(_args: Vec<OsString>) {
     }
 }
 
-fn handle_message(msg: &Message, _config: &Config) -> Result<()> {
+fn handle_message(msg: &Message, config: &mut Config) -> Result<()> {
     log::debug!("Received: {:?}", msg);
 
     match msg {
-        _ => (),
-    }
+        Message::Interval(interval) => {
+            config.service.interval = interval.clone();
+            Ok(())
+        }
+        Message::AddDomain(domain) => {
+            if config.service.domain.len() >= common::consts::DOMAIN_LENGTH_LIMIT {
+                Err(anyhow!("The number of domain to update is limited to {}", common::consts::DOMAIN_LENGTH_LIMIT))
+            } else if config.service.domain.insert(domain.clone()) {
+                Ok(())
+            } else {
+                Err(anyhow!("Domain {domain} already exists"))
+            }
+        }
+        Message::RemoveDomain(domain) => {
+            if config.service.domain.remove(domain) {
+                Ok(())
+            } else {
+                Err(anyhow!("Domain {domain} does not exist"))
+            }
+        }
+        Message::Token(token) => {
+            config.service.token.replace(token.clone());
+            Ok(())
+        }
+    }?;
 
+    log::debug!("New config:\n{config}");
     Ok(())
 }
 
-async fn service_listening_loop(config: Config) {
+async fn service_listening_loop(mut config: Config) {
     loop {
         match ServerOptions::new().create(common::strings::PIPE_NAME) {
             Ok(mut pipe) => {
@@ -139,7 +163,7 @@ async fn service_listening_loop(config: Config) {
                                 continue;
                             }
                         };
-                        if let Err(e) = handle_message(&msg, &config) {
+                        if let Err(e) = handle_message(&msg, &mut config) {
                             log::error!("Failed to handle {msg:?}, error: {e}");
                         }
                     }
@@ -168,6 +192,7 @@ fn run_service(status_handle: ServiceStatusHandle, shutdown_rx: mpsc::Receiver<(
 
     // Tell the system that the service is running now
     status_handle.set_service_status(next_status)?;
+    log::info!("Service has started");
 
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
