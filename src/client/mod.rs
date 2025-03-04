@@ -19,7 +19,6 @@ async fn send_message(msg: Message) -> Result<()> {
 }
 
 pub async fn set_interval(duration: Duration) -> Result<()> {
-
     let msg = Message::Interval(duration);
     send_message(msg).await
 }

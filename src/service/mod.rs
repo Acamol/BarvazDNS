@@ -3,6 +3,7 @@ use flexi_logger::{FileSpec, Logger, WriteMode};
 use std::ffi::OsString;
 use std::time::{Duration, Instant};
 use std::sync::mpsc;
+use std::io::Write;
 use tokio::runtime::Runtime;
 use tokio::net::windows::named_pipe::ServerOptions;
 use windows_service::service::{ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus, ServiceType};
@@ -11,6 +12,8 @@ use windows_service::{
     service_control_handler::{self, ServiceControlHandlerResult, ServiceStatusHandle},
 	service_dispatcher,
 };
+
+use flexi_logger::{DeferredNow, Record};
 
 use crate::common::{self, config::Config, message::Message};
 
@@ -26,10 +29,6 @@ pub fn service_dispatcher() -> Result<()> {
     service_dispatcher::start(common::strings::SERVICE_NAME, duckdns_service_main)
 		.map_err(|e| anyhow!("Dispatching error: {e:#?}"))
 }
-
-use flexi_logger::{DeferredNow, Record};
-use std::io::Write;
-
 
 fn logger_init() -> Result<()> {
     let log_formatter = |w: &mut dyn Write, now: &mut DeferredNow, record: &Record| -> Result<(), std::io::Error> {
@@ -50,14 +49,14 @@ fn logger_init() -> Result<()> {
     let level = std::env::var(common::strings::ENV_VAR_LOG_LEVEL).unwrap_or("info".to_string());
 
     Logger::try_with_str(&level).unwrap()
-    .log_to_file(FileSpec::default()
-        .directory(path)
-        .basename(common::strings::LOG_FILE_BASENAME)
-        .suppress_timestamp())
-    .write_mode(WriteMode::Direct)
-    .format_for_files(log_formatter)
-    .append()
-    .start().map(|_| ()).map_err(|e| anyhow!("{e}"))
+        .log_to_file(FileSpec::default()
+            .directory(path)
+            .basename(common::strings::LOG_FILE_BASENAME)
+            .suppress_timestamp())
+        .write_mode(WriteMode::Direct)
+        .format_for_files(log_formatter)
+        .append()
+        .start().map(|_| ()).map_err(|e| anyhow!("{e}"))
 }
 
 fn service_main(_args: Vec<OsString>) {
@@ -116,8 +115,12 @@ fn handle_message(msg: &Message, config: &mut Config, update_tx: &mpsc::Sender<C
     match msg {
         Message::Interval(interval) => {
             // TODO: limit minimal interval
-            config.service.interval = interval.clone();
-            Ok(())
+            if *interval < common::consts::MINIMAL_INTERVAL {
+                Err(anyhow!("Got interval of {}, minimal interval is {}", humantime::format_duration(*interval), humantime::format_duration(common::consts::MINIMAL_INTERVAL)))
+            } else {
+                config.service.interval = interval.clone();
+                Ok(())
+            }
         }
         Message::AddDomain(domain) => {
             if config.service.domain.len() >= common::consts::DOMAIN_LENGTH_LIMIT {
@@ -225,7 +228,7 @@ fn run_service(status_handle: ServiceStatusHandle, shutdown_rx: mpsc::Receiver<(
         controls_accepted: ServiceControlAccept::STOP,
         exit_code: ServiceExitCode::Win32(0),
         checkpoint: 0,
-        wait_hint: Duration::from_secs(60),
+        wait_hint: Duration::default(),
         process_id: None,
     };
 
@@ -255,7 +258,6 @@ fn run_service(status_handle: ServiceStatusHandle, shutdown_rx: mpsc::Receiver<(
     let next_status = ServiceStatus {
         service_type: ServiceType::OWN_PROCESS,
         current_state: ServiceState::Stopped,
-        // Accept stop events when running
         controls_accepted: ServiceControlAccept::empty(),
         exit_code: ServiceExitCode::Win32(0),
         checkpoint: 0,

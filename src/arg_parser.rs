@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use std::time::Duration;
-use humantime::parse_duration;
+use humantime::{format_duration, parse_duration};
 
 use crate::common;
 
@@ -82,5 +82,10 @@ pub struct Cli {
 }
 
 fn parse_humantime_duration(s: &str) -> Result<Duration, String> {
-    parse_duration(s).map_err(|e| e.to_string())
+    let duration = parse_duration(s).map_err(|e| e.to_string())?;
+    if duration < common::consts::MINIMAL_INTERVAL {
+        Err(format!("Duration must be at least {}, got {}", format_duration(common::consts::MINIMAL_INTERVAL), format_duration(duration)))
+    } else {
+        Ok(duration)
+    }
 }

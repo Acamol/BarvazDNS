@@ -37,7 +37,17 @@ pub fn read() -> Result<Config> {
 	if config_dir_path.is_dir() && config_file_path.is_file() {
 		let config_file = fs::read_to_string(&config_file_path)?;
 		return Ok(
-			if let Ok(config) = toml::from_str::<Config>(&config_file) {
+			if let Ok(mut config) = toml::from_str::<Config>(&config_file) {
+				if config.service.interval < common::consts::MINIMAL_INTERVAL {
+					let min_human_time = humantime::format_duration(common::consts::MINIMAL_INTERVAL);
+					let interval_human_time = humantime::format_duration(config.service.interval);
+
+					log::info!("Interval must be at least {}, got {}, using {}", min_human_time, interval_human_time, min_human_time);
+					config.service.interval = common::consts::MINIMAL_INTERVAL;
+
+					// we can now store the new interval, but we'll allow bad configuration -
+					// just ignore it
+				}
 				config
 			} else {
 				toml::from_str::<Config>(common::strings::DEFAULT_CONFIG_CONTENT)?
