@@ -37,3 +37,13 @@ pub async fn remove_domain(domain: String) -> Result<()> {
     let msg = Message::RemoveDomain(domain);
     send_message(msg).await
 }
+
+pub async fn enable_ipv6() -> Result<()> {
+    let msg = Message::Ipv6(true);
+    send_message(msg).await
+}
+
+pub async fn disable_ipv6() -> Result<()> {
+    let msg = Message::Ipv6(false);
+    send_message(msg).await
+}

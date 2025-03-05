@@ -17,6 +17,9 @@ pub struct ServiceConfig {
 	pub domain: HashSet<String>,
 	#[serde(with = "humantime_serde")]
 	pub interval: Duration,
+	pub ipv6: Option<bool>,
+	#[serde(skip_serializing, default)]
+	pub ipv6_config_changed: bool,
 }
 
 #[derive(Deserialize, Serialize, Clone)]

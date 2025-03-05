@@ -114,11 +114,10 @@ fn handle_message(msg: &Message, config: &mut Config, update_tx: &mpsc::Sender<C
 
     match msg {
         Message::Interval(interval) => {
-            // TODO: limit minimal interval
             if *interval < common::consts::MINIMAL_INTERVAL {
                 Err(anyhow!("Got interval of {}, minimal interval is {}", humantime::format_duration(*interval), humantime::format_duration(common::consts::MINIMAL_INTERVAL)))
             } else {
-                config.service.interval = interval.clone();
+                config.service.interval = *interval;
                 Ok(())
             }
         }
@@ -140,6 +139,13 @@ fn handle_message(msg: &Message, config: &mut Config, update_tx: &mpsc::Sender<C
         }
         Message::Token(token) => {
             config.service.token.replace(token.clone());
+            Ok(())
+        }
+        Message::Ipv6(enable) => {
+            if config.service.ipv6.is_some_and(|v| v != *enable) {
+                config.service.ipv6 = Some(*enable);
+                config.service.ipv6_config_changed = true;
+            }
             Ok(())
         }
     }?;
@@ -213,6 +219,7 @@ async fn update_ip_loop(receiver: mpsc::Receiver<Config>, initial_config: Config
         if last_run.elapsed() >= config.service.interval {
             duckdns::update(&config).await;
             last_run = Instant::now();
+            config.service.ipv6_config_changed = false;
         }
 
         // let other tasks a chance to advance too

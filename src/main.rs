@@ -48,7 +48,9 @@ async fn main() -> Result<()> {
                 ClientSubcommands::SetToken { token } => client::set_token(token).await?,
                 ClientSubcommands::Domain(DomainSubCommands::Add { domain }) => client::add_domain(domain).await?,
                 ClientSubcommands::Domain(DomainSubCommands::Remove { domain }) => client::remove_domain(domain).await?,
-                ClientSubcommands::Set(_set_args) => unimplemented!(),
+                ClientSubcommands::Set(_set_args) => todo!(),
+                ClientSubcommands::Ipv6(IPv6SubCommands::Enable) => client::enable_ipv6().await?,
+                ClientSubcommands::Ipv6(IPv6SubCommands::Disable) => client::disable_ipv6().await?,
             }
         }
     }

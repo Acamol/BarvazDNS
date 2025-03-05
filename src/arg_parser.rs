@@ -38,6 +38,14 @@ pub enum DomainSubCommands {
     }
 }
 
+#[derive(Subcommand, Debug)]
+pub enum IPv6SubCommands {
+    /// Enables IPv6 address updates for your DuckDNS domains.
+    Enable,
+    /// Disables IPv6 address updates for your DuckDNS domains.
+    Disable,
+}
+
 #[derive(Parser, Debug)]
 pub enum ClientSubcommands {
     /// Sets the interval at which the service checks for and updates your public IP address, using human-readable time.
@@ -45,7 +53,7 @@ pub enum ClientSubcommands {
         #[arg(value_parser = parse_humantime_duration)]
         interval: Duration,
     },
-    /// Sets the authentication token used to update your DuckDNS domain.
+    /// Sets the authentication token used to update your DuckDNS domains.
     SetToken {
         #[arg(value_parser)]
         token: String,
@@ -55,6 +63,9 @@ pub enum ClientSubcommands {
     Domain(DomainSubCommands),
     /// Sets the token, domain or interval.
     Set(ClientSetArgs),
+    /// Enables or disables IPv6 address updates for your DuckDNS domains.
+    #[command(subcommand)]
+    Ipv6(IPv6SubCommands)
 }
 
 #[derive(Parser, Debug)]
@@ -62,7 +73,7 @@ pub struct ClientSetArgs {
     /// Sets the interval at which the service checks for and updates your public IP address, using human-readable time.
     #[arg(short, long, value_parser = parse_humantime_duration)]
     interval: Option<Duration>,
-    /// Sets the authentication token used to update your DuckDNS domain.
+    /// Sets the authentication token used to update your DuckDNS domains.
     #[arg(short, long)]
     token: Option<String>,
     /// Sets the DuckDNS domain name that will be updated.
