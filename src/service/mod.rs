@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use flexi_logger::{FileSpec, LogSpecification, Logger, LoggerHandle, WriteMode};
+use flexi_logger::{Cleanup, FileSpec, LogSpecification, Logger, LoggerHandle, WriteMode};
 use std::ffi::OsString;
 use std::time::{Duration, Instant};
 use std::sync::mpsc;
@@ -53,6 +53,11 @@ fn logger_init() -> Result<LoggerHandle> {
             .directory(path)
             .basename(common::strings::LOG_FILE_BASENAME)
             .suppress_timestamp())
+        .rotate(
+            flexi_logger::Criterion::Size(1024 * 1024), // 1MB
+            flexi_logger::Naming::Timestamps,
+            Cleanup::KeepLogFiles(3)
+        )
         .write_mode(WriteMode::Direct)
         .format_for_files(log_formatter)
         .append()
