@@ -4,13 +4,7 @@ use humantime::{format_duration, parse_duration};
 
 use crate::common;
 
-#[derive(Subcommand, Debug)]
-pub enum Command {
-    /// Service related commands
-    Service(ServiceCommands),
-    /// Client related commands
-    Client(ClientCommands),
-}
+
 
 #[derive(Parser, Debug)]
 pub struct ServiceCommands {
@@ -31,6 +25,20 @@ pub enum ServiceSubcommands {
 }
 
 #[derive(Subcommand, Debug)]
+pub enum DomainSubCommands {
+    /// Add a DuckDNS domain to the service.
+    Add {
+        #[arg(value_parser)]
+        domain: String,
+    },
+    /// Remove a DuckDNS domain from the service.
+    Remove {
+        #[arg(value_parser)]
+        domain: String,
+    }
+}
+
+#[derive(Parser, Debug)]
 pub enum ClientSubcommands {
     /// Sets the interval at which the service checks for and updates your public IP address, using human-readable time.
     SetInterval {
@@ -42,15 +50,9 @@ pub enum ClientSubcommands {
         #[arg(value_parser)]
         token: String,
     },
-    /// Adds a DuckDNS domain name that will be updated.
-    AddDomain {
-        #[arg(value_parser)]
-        domain: String,
-    },
-    RemoveDomain {
-        #[arg(value_parser)]
-        domain: String,
-    },
+    /// Adds or remove a DuckDNS domain name.
+    #[command(subcommand)]
+    Domain(DomainSubCommands),
     /// Sets the token, domain or interval.
     Set(ClientSetArgs),
 }
@@ -72,6 +74,14 @@ pub struct ClientSetArgs {
 pub struct ClientCommands {
     #[command(subcommand)]
     pub command: ClientSubcommands,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Command {
+    /// Service related commands
+    Service(ServiceCommands),
+    /// Client related commands
+    Client(ClientCommands),
 }
 
 #[derive(Parser, Debug)]
