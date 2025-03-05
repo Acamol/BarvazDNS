@@ -52,3 +52,8 @@ pub async fn force_update() -> Result<()> {
     let msg = Message::ForceUpdate;
     send_message(msg).await
 }
+
+pub async fn update_debug_level(level: String) -> Result<()> {
+    let msg = Message::DebugLevel(level);
+    send_message(msg).await
+}

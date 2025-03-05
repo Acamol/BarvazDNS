@@ -13,6 +13,7 @@ pub enum Message {
 	RemoveDomain(String),
 	Ipv6(bool),
 	ForceUpdate,
+	DebugLevel(String),
 }
 
 impl Message {

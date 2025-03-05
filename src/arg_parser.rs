@@ -1,5 +1,5 @@
-use clap::{Parser, Subcommand};
-use std::time::Duration;
+use clap::{Parser, Subcommand, ValueEnum};
+use std::{fmt, time::Duration};
 use humantime::{format_duration, parse_duration};
 
 use crate::common;
@@ -46,6 +46,23 @@ pub enum IPv6SubCommands {
     Disable,
 }
 
+#[derive(ValueEnum, Clone, Debug)]
+pub enum DebugLevelOption {
+    Error,
+    Info,
+    Debug,
+}
+
+impl fmt::Display for DebugLevelOption {
+ fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self {
+        Self::Error => write!(f, "error"),
+        Self::Info => write!(f, "info"),
+        Self::Debug => write!(f, "debug"),
+    }
+ }
+}
+
 #[derive(Parser, Debug)]
 pub enum ClientSubcommands {
     /// Sets the interval at which the service checks for and updates your public IP address, using human-readable time.
@@ -68,6 +85,11 @@ pub enum ClientSubcommands {
     Ipv6(IPv6SubCommands),
     /// Forces an update based on the configuration file.
     Update,
+    #[clap(hide = true)]
+    Debug {
+        #[arg(value_enum)]
+        level: DebugLevelOption,
+    }
 }
 
 #[derive(Parser, Debug)]

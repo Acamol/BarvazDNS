@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use flexi_logger::{FileSpec, Logger, WriteMode};
+use flexi_logger::{FileSpec, LogSpecification, Logger, LoggerHandle, WriteMode};
 use std::ffi::OsString;
 use std::time::{Duration, Instant};
 use std::sync::mpsc;
@@ -30,7 +30,7 @@ pub fn service_dispatcher() -> Result<()> {
 		.map_err(|e| anyhow!("Dispatching error: {e:#?}"))
 }
 
-fn logger_init() -> Result<()> {
+fn logger_init() -> Result<LoggerHandle> {
     let log_formatter = |w: &mut dyn Write, now: &mut DeferredNow, record: &Record| -> Result<(), std::io::Error> {
         write!(w,
             "[{}] {}: {}",
@@ -56,11 +56,12 @@ fn logger_init() -> Result<()> {
         .write_mode(WriteMode::Direct)
         .format_for_files(log_formatter)
         .append()
-        .start().map(|_| ()).map_err(|e| anyhow!("{e}"))
+        .start()
+        .map_err(|e| anyhow!("{e}"))
 }
 
 fn service_main(_args: Vec<OsString>) {
-    let (shutdown_tx, shutdown_rx) = mpsc::channel(); // TODO: switch to oneshot
+    let (shutdown_tx, shutdown_rx) = mpsc::channel();
 
     let event_handler = move |control_event| -> ServiceControlHandlerResult {
         match control_event {
@@ -96,20 +97,23 @@ fn service_main(_args: Vec<OsString>) {
         }
     };
 
-	if let Err(_) = logger_init() {
-        todo!("update status");
-        #[allow(unreachable_code)]
-        return;
-    }
+	let logger_handle = match logger_init() {
+        Err(_) => {
+            todo!("update status");
+            #[allow(unreachable_code)]
+            return;
+        }
+        Ok(handle) => handle,
+    };
 
     log::debug!("Service is running with the following configuration:\n{config}");
 
-    if let Err(e) = run_service(status_handle, shutdown_rx, config) {
+    if let Err(e) = run_service(status_handle, shutdown_rx, config, logger_handle) {
         log::error!("Service failed: {:?}", e);
     }
 }
 
-fn handle_message(msg: &Message, config: &mut Config, update_tx: &mpsc::Sender<Config>) -> Result<()> {
+fn handle_message(msg: &Message, config: &mut Config, update_tx: &mpsc::Sender<Config>, logger_handle: &LoggerHandle) -> Result<()> {
     log::debug!("Received: {:?}", msg);
 
     match msg {
@@ -152,6 +156,12 @@ fn handle_message(msg: &Message, config: &mut Config, update_tx: &mpsc::Sender<C
             *config = config::read()?;
             Ok(())
         }
+        Message::DebugLevel(level) => {
+            let new_spec = LogSpecification::parse(level)?;
+            logger_handle.set_new_spec(new_spec);
+            log::info!("debug level changed to {level}");
+            return Ok(())
+        }
     }?;
 
     config.store()?;
@@ -161,7 +171,7 @@ fn handle_message(msg: &Message, config: &mut Config, update_tx: &mpsc::Sender<C
     Ok(())
 }
 
-async fn service_listening_loop(mut config: Config, update_tx: mpsc::Sender<Config>) {
+async fn service_listening_loop(mut config: Config, update_tx: mpsc::Sender<Config>, logger_handle: LoggerHandle) {
     // force an update when the service has just started
     if let Err(_) = update_tx.send(config.clone()) {
         log::error!("Failed to request an update");
@@ -190,7 +200,7 @@ async fn service_listening_loop(mut config: Config, update_tx: mpsc::Sender<Conf
                                 continue;
                             }
                         };
-                        if let Err(e) = handle_message(&msg, &mut config, &update_tx) {
+                        if let Err(e) = handle_message(&msg, &mut config, &update_tx, &logger_handle) {
                             log::error!("Failed to handle {msg:?}, error: {e}");
                         }
                     }
@@ -238,7 +248,7 @@ async fn update_ip_loop(receiver: mpsc::Receiver<Config>, initial_config: Config
     }
 }
 
-fn run_service(status_handle: ServiceStatusHandle, shutdown_rx: mpsc::Receiver<()>, config: Config) -> Result<()> {
+fn run_service(status_handle: ServiceStatusHandle, shutdown_rx: mpsc::Receiver<()>, config: Config, logger_handle: LoggerHandle) -> Result<()> {
     let (update_tx, update_rx) = mpsc::channel();
     let next_status = ServiceStatus {
         service_type: ServiceType::OWN_PROCESS,
@@ -256,7 +266,7 @@ fn run_service(status_handle: ServiceStatusHandle, shutdown_rx: mpsc::Receiver<(
 
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
-        let listening_loop_handle = tokio::spawn(service_listening_loop(config.clone(), update_tx));
+        let listening_loop_handle = tokio::spawn(service_listening_loop(config.clone(), update_tx, logger_handle));
         let shutdown_handle = tokio::spawn(async move {shutdown_rx.recv().unwrap();});
         let update_ip_handle = tokio::spawn(update_ip_loop(update_rx, config.clone()));
 
