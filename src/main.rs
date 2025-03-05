@@ -52,6 +52,7 @@ async fn main() -> Result<()> {
                 ClientSubcommands::Ipv6(IPv6SubCommands::Disable) => client::disable_ipv6().await?,
                 ClientSubcommands::Update => client::force_update().await?,
                 ClientSubcommands::Debug { level } => client::update_debug_level(level.to_string()).await?,
+                ClientSubcommands::ShowConfig => client::print_configuration().await?,
             }
         }
     }

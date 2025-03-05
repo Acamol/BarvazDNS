@@ -1,11 +1,12 @@
 use anyhow::{anyhow, Result};
 use flexi_logger::{Cleanup, FileSpec, LogSpecification, Logger, LoggerHandle, WriteMode};
+use tokio::io::AsyncWriteExt;
 use std::ffi::OsString;
 use std::time::{Duration, Instant};
 use std::sync::mpsc;
 use std::io::Write;
 use tokio::runtime::Runtime;
-use tokio::net::windows::named_pipe::ServerOptions;
+use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
 use windows_service::service::{ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus, ServiceType};
 use windows_service::{
     define_windows_service,
@@ -15,7 +16,10 @@ use windows_service::{
 
 use flexi_logger::{DeferredNow, Record};
 
-use crate::common::{self, config::Config, message::Message};
+use crate::common::{self,
+    config::Config,
+    message::{Request, Response, Serialize, Deserialize},
+};
 
 mod duckdns;
 mod config;
@@ -118,54 +122,57 @@ fn service_main(_args: Vec<OsString>) {
     }
 }
 
-fn handle_message(msg: &Message, config: &mut Config, update_tx: &mpsc::Sender<Config>, logger_handle: &LoggerHandle) -> Result<()> {
+fn handle_message(msg: &Request, config: &mut Config, update_tx: &mpsc::Sender<Config>, logger_handle: &LoggerHandle) -> Result<Response> {
     log::debug!("Received: {:?}", msg);
 
-    match msg {
-        Message::Interval(interval) => {
+    let res = match msg {
+        Request::Interval(interval) => {
             if *interval < common::consts::MINIMAL_INTERVAL {
                 Err(anyhow!("Got interval of {}, minimal interval is {}", humantime::format_duration(*interval), humantime::format_duration(common::consts::MINIMAL_INTERVAL)))
             } else {
                 config.service.interval = *interval;
-                Ok(())
+                Ok(Response::Nothing)
             }
         }
-        Message::AddDomain(domain) => {
+        Request::AddDomain(domain) => {
             if config.service.domain.len() >= common::consts::DOMAIN_LENGTH_LIMIT {
                 Err(anyhow!("The number of domain to update is limited to {}", common::consts::DOMAIN_LENGTH_LIMIT))
             } else if config.service.domain.insert(domain.clone()) {
-                Ok(())
+                Ok(Response::Nothing)
             } else {
                 Err(anyhow!("Domain {domain} already exists"))
             }
         }
-        Message::RemoveDomain(domain) => {
+        Request::RemoveDomain(domain) => {
             if config.service.domain.remove(domain) {
-                Ok(())
+                Ok(Response::Nothing)
             } else {
                 Err(anyhow!("Domain {domain} does not exist"))
             }
         }
-        Message::Token(token) => {
+        Request::Token(token) => {
             config.service.token.replace(token.clone());
-            Ok(())
+            Ok(Response::Nothing)
         }
-        Message::Ipv6(enable) => {
+        Request::Ipv6(enable) => {
             if config.service.ipv6.is_some_and(|v| v != *enable) {
                 config.service.ipv6 = Some(*enable);
                 config.service.clear_ip_addresses = true;
             }
-            Ok(())
+            Ok(Response::Nothing)
         }
-        Message::ForceUpdate => {
+        Request::ForceUpdate => {
             *config = config::read()?;
-            Ok(())
+            Ok(Response::Nothing)
         }
-        Message::DebugLevel(level) => {
+        Request::DebugLevel(level) => {
             let new_spec = LogSpecification::parse(level)?;
             logger_handle.set_new_spec(new_spec);
             log::info!("debug level changed to {level}");
-            return Ok(())
+            return Ok(Response::Nothing)
+        }
+        Request::GetConfig => {
+            Ok(Response::Config(config.service.clone()))
         }
     }?;
 
@@ -173,7 +180,14 @@ fn handle_message(msg: &Message, config: &mut Config, update_tx: &mpsc::Sender<C
     update_tx.send(config.clone())?;
 
     log::debug!("New config:\n{config}");
-    Ok(())
+    Ok(res)
+}
+
+async fn send_response(pipe: &mut NamedPipeServer, response: Response) -> Result<()> {
+    let encoded = response.serialize()?;
+    pipe.write_all(&encoded)
+        .await
+        .map_err(|e| anyhow!("{e}"))
 }
 
 async fn service_listening_loop(mut config: Config, update_tx: mpsc::Sender<Config>, logger_handle: LoggerHandle) {
@@ -192,21 +206,27 @@ async fn service_listening_loop(mut config: Config, update_tx: mpsc::Sender<Conf
                 } 
                 log::debug!("Client connected");
 
-                let mut buffer = vec![0; std::mem::size_of::<Message>()];
+                let mut buffer = vec![0; std::mem::size_of::<Request>()];
                 match pipe.read_with_timeout(&mut buffer, Duration::from_secs(common::consts::PIPE_TIMEOUT_IN_SEC)).await {
                     Ok(0) => {
                         log::debug!("Client disconnected");
                     }
                     Ok(_bytes_read) => {
-                        let msg = match Message::deserialize(&buffer) {
+                        let msg = match Request::deserialize(&buffer) {
                             Ok(m) => m,
                             Err(e) => {
                                 log::error!("Failed to deserialize message, error: {e}");
                                 continue;
                             }
                         };
-                        if let Err(e) = handle_message(&msg, &mut config, &update_tx, &logger_handle) {
-                            log::error!("Failed to handle {msg:?}, error: {e}");
+                        match handle_message(&msg, &mut config, &update_tx, &logger_handle) {
+                            Err(e) => log::error!("Failed to handle {msg:?}, error: {e}"),
+                            Ok(Response::Nothing) => (),
+                            Ok(res) => {
+                                if let Err(e) = send_response(&mut pipe, res).await {
+                                    log::error!("Failed to send response: {e}");
+                                }
+                            }
                         }
                     }
                     Err(e) => {

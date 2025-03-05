@@ -10,7 +10,7 @@ use anyhow::{Result, anyhow};
 use crate::common;
 
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct ServiceConfig {
 	pub token: Option<String>,
 	#[serde(default)]
@@ -20,6 +20,18 @@ pub struct ServiceConfig {
 	pub ipv6: Option<bool>,
 	#[serde(skip_serializing, default)]
 	pub clear_ip_addresses: bool,
+}
+
+impl fmt::Display for ServiceConfig {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f,
+			"token: {}\ndomains: {}\ninterval: {}\nipv6: {}",
+			self.token.as_ref().unwrap_or(&"".to_string()),
+			self.domain.iter().cloned().collect::<Vec<String>>().join(","),
+			humantime::format_duration(self.interval),
+			if self.ipv6.is_some_and(|v| v == true) { "enabled" } else { "disabled" }
+		)
+	}
 }
 
 #[derive(Deserialize, Serialize, Clone)]

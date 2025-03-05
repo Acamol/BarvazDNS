@@ -83,6 +83,8 @@ pub enum ClientSubcommands {
     Ipv6(IPv6SubCommands),
     /// Forces an update based on the configuration file.
     Update,
+    /// Prints the current service configuration.
+    ShowConfig,
     #[clap(hide = true)]
     Debug {
         #[arg(value_enum)]
