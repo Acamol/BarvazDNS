@@ -158,6 +158,11 @@ fn handle_message(msg: &Message, config: &mut Config, update_tx: &mpsc::Sender<C
 }
 
 async fn service_listening_loop(mut config: Config, update_tx: mpsc::Sender<Config>) {
+    // this forces an update once the service starts
+    if let Err(e) = update_tx.send(config.clone()) {
+        log::error!("Failed to request an update");
+    }
+
     loop {
         match ServerOptions::new().create(common::strings::PIPE_NAME) {
             Ok(mut pipe) => {
