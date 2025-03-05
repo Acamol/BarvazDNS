@@ -144,8 +144,12 @@ fn handle_message(msg: &Message, config: &mut Config, update_tx: &mpsc::Sender<C
         Message::Ipv6(enable) => {
             if config.service.ipv6.is_some_and(|v| v != *enable) {
                 config.service.ipv6 = Some(*enable);
-                config.service.ipv6_config_changed = true;
+                config.service.clear_ip_addresses = true;
             }
+            Ok(())
+        }
+        Message::ForceUpdate => {
+            *config = config::read()?;
             Ok(())
         }
     }?;
@@ -158,8 +162,8 @@ fn handle_message(msg: &Message, config: &mut Config, update_tx: &mpsc::Sender<C
 }
 
 async fn service_listening_loop(mut config: Config, update_tx: mpsc::Sender<Config>) {
-    // this forces an update once the service starts
-    if let Err(e) = update_tx.send(config.clone()) {
+    // force an update when the service has just started
+    if let Err(_) = update_tx.send(config.clone()) {
         log::error!("Failed to request an update");
     }
 
@@ -226,7 +230,7 @@ async fn update_ip_loop(receiver: mpsc::Receiver<Config>, initial_config: Config
         if last_run.elapsed() >= config.service.interval || force_update {
             duckdns::update(&config).await;
             last_run = Instant::now();
-            config.service.ipv6_config_changed = false;
+            config.service.clear_ip_addresses = false;
         }
 
         // let other tasks a chance to advance too

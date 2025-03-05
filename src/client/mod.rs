@@ -47,3 +47,8 @@ pub async fn disable_ipv6() -> Result<()> {
     let msg = Message::Ipv6(false);
     send_message(msg).await
 }
+
+pub async fn force_update() -> Result<()> {
+    let msg = Message::ForceUpdate;
+    send_message(msg).await
+}

@@ -19,7 +19,7 @@ pub struct ServiceConfig {
 	pub interval: Duration,
 	pub ipv6: Option<bool>,
 	#[serde(skip_serializing, default)]
-	pub ipv6_config_changed: bool,
+	pub clear_ip_addresses: bool,
 }
 
 #[derive(Deserialize, Serialize, Clone)]

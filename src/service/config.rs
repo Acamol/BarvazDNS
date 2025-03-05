@@ -48,6 +48,9 @@ pub fn read() -> Result<Config> {
 					// we can now store the new interval, but we'll allow bad configuration -
 					// just ignore it
 				}
+				// to be on the safe side, when we read from the config file,
+				// better to clear addresses in case the IPv6 configuration was changed
+				config.service.clear_ip_addresses = true;
 				config
 			} else {
 				toml::from_str::<Config>(common::strings::DEFAULT_CONFIG_CONTENT)?

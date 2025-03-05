@@ -65,7 +65,9 @@ pub enum ClientSubcommands {
     Set(ClientSetArgs),
     /// Enables or disables IPv6 address updates for your DuckDNS domains.
     #[command(subcommand)]
-    Ipv6(IPv6SubCommands)
+    Ipv6(IPv6SubCommands),
+    /// Forces an update based on the configuration file.
+    Update,
 }
 
 #[derive(Parser, Debug)]

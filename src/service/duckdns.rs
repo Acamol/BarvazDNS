@@ -44,7 +44,7 @@ pub async fn update(config: &Config) {
 		}
 	};
 
-	if config.service.ipv6_config_changed {
+	if config.service.clear_ip_addresses {
 		log::debug!("Clear IP addresses");
 		// the ipv6 confiugration might have been changed to false,
 		// in which case we need to clear the ipv6 addrress
