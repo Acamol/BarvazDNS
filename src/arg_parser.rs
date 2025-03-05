@@ -65,21 +65,19 @@ impl fmt::Display for DebugLevelOption {
 
 #[derive(Parser, Debug)]
 pub enum ClientSubcommands {
-    /// Sets the interval at which the service checks for and updates your public IP address, using human-readable time.
-    SetInterval {
+    /// Sets the interval in human-readable time at which the service checks for and updates your public IP address.
+    Interval {
         #[arg(value_parser = parse_humantime_duration)]
         interval: Duration,
     },
-    /// Sets the authentication token used to update your DuckDNS domains.
-    SetToken {
+    /// Sets the token used to update your DuckDNS domains.
+    Token {
         #[arg(value_parser)]
         token: String,
     },
-    /// Adds or remove a DuckDNS domain name.
+    /// Adds or removes a DuckDNS domain name from the service.
     #[command(subcommand)]
     Domain(DomainSubCommands),
-    /// Sets the token, domain or interval.
-    Set(ClientSetArgs),
     /// Enables or disables IPv6 address updates for your DuckDNS domains.
     #[command(subcommand)]
     Ipv6(IPv6SubCommands),

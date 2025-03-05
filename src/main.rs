@@ -44,11 +44,10 @@ async fn main() -> Result<()> {
             }
         Command::Client(client_args) => {
             match client_args.command {
-                ClientSubcommands::SetInterval { interval } => client::set_interval(interval).await?,
-                ClientSubcommands::SetToken { token } => client::set_token(token).await?,
+                ClientSubcommands::Interval { interval } => client::set_interval(interval).await?,
+                ClientSubcommands::Token { token } => client::set_token(token).await?,
                 ClientSubcommands::Domain(DomainSubCommands::Add { domain }) => client::add_domain(domain).await?,
                 ClientSubcommands::Domain(DomainSubCommands::Remove { domain }) => client::remove_domain(domain).await?,
-                ClientSubcommands::Set(_set_args) => todo!(),
                 ClientSubcommands::Ipv6(IPv6SubCommands::Enable) => client::enable_ipv6().await?,
                 ClientSubcommands::Ipv6(IPv6SubCommands::Disable) => client::disable_ipv6().await?,
                 ClientSubcommands::Update => client::force_update().await?,
