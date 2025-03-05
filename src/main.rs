@@ -53,6 +53,7 @@ async fn main() -> Result<()> {
                 ClientSubcommands::Update => client::force_update().await?,
                 ClientSubcommands::Debug { level } => client::update_debug_level(level.to_string()).await?,
                 ClientSubcommands::ShowConfig => client::print_configuration().await?,
+                ClientSubcommands::Status => client::get_last_status().await?,
             }
         }
     }

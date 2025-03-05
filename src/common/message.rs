@@ -26,6 +26,7 @@ pub enum Request {
 	ForceUpdate,
 	DebugLevel(String),
 	GetConfig,
+	GetStatus,
 }
 
 impl Serialize for Request {
@@ -45,6 +46,7 @@ impl Deserialize for Request {
 pub enum Response {
 	Nothing,
 	Config(config::ServiceConfig),
+	Status(bool),
 }
 
 impl Serialize for Response {

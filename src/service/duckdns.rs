@@ -35,34 +35,50 @@ fn clear_ip_addresses(config: &Config) -> Result<minreq::Response, minreq::Error
 	minreq::get(url) .send()
 }
 
-pub async fn update(config: &Config) {
+pub async fn update(config: &Config) -> Result<()> {
 	let url = match generate_request(&config).await {
 		Ok(u) => u,
 		Err(e) => {
 			log::error!("{e}");
-			return;
+			return Err(anyhow!("{e}"));
 		}
 	};
 
 	if config.service.clear_ip_addresses {
-		log::debug!("Clear IP addresses");
 		// the ipv6 confiugration might have been changed to false,
 		// in which case we need to clear the ipv6 addrress
 		match clear_ip_addresses(config) {
-			Ok(res) => log::debug!("Clear sent. Response: {res:?}"),
+			Ok(res) => {
+				let body = res.as_str()?;
+				match body {
+					"OK" => log::debug!("Cleared"),
+					_ => return Err(anyhow!("Failed to clear. Bad response")),
+
+				}
+				log::debug!("Clear sent. Response: {res:?}");
+			}
 			Err(e) => {
 				log::error!("Failed to clear IP addresses on DuckDNS");
 				log::debug!("Error is {e}");
+				return Err(anyhow!("{e}"));
 			}
 		}
 	}
 
 	log::debug!("Request url: {url}");
 	match minreq::get(url).send() {
-		Ok(res) => log::debug!("Update sent. Response: {res:?}"),
+		Ok(res) => {
+			let body = res.as_str()?;
+			log::debug!("Update sent. Response: {body}");
+			match body {
+				"OK" => Ok(()),
+				_ => Err(anyhow!("Bad response")),
+			}
+		}
 		Err(e) => {
 			log::error!("Failed to update DuckDNS");
 			log::debug!("Error is {e}");
+			return Err(anyhow!("{e}"));
 		}
 	}
 }

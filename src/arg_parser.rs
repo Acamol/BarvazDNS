@@ -89,7 +89,9 @@ pub enum ClientSubcommands {
     Debug {
         #[arg(value_enum)]
         level: DebugLevelOption,
-    }
+    },
+    /// Retrieves the last update attempt status.
+    Status,
 }
 
 #[derive(Parser, Debug)]

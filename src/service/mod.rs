@@ -1,9 +1,10 @@
 use anyhow::{anyhow, Result};
 use flexi_logger::{Cleanup, FileSpec, LogSpecification, Logger, LoggerHandle, WriteMode};
 use tokio::io::AsyncWriteExt;
+use tokio::sync::Mutex;
 use std::ffi::OsString;
 use std::time::{Duration, Instant};
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc};
 use std::io::Write;
 use tokio::runtime::Runtime;
 use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
@@ -91,6 +92,7 @@ struct ServiceContext {
     logger_handle: LoggerHandle,
     status_handle: ServiceStatusHandle,
     config: Config,
+    last_update_succeeded: Arc<Mutex<bool>>,
 }
 
 fn service_main(_args: Vec<OsString>) {
@@ -135,6 +137,7 @@ fn service_main(_args: Vec<OsString>) {
         status_handle,
         logger_handle,
         config,
+        last_update_succeeded: Arc::new(Mutex::new(false)),
     };
 
     if let Err(e) = run_service(context, shutdown_rx) {
@@ -142,7 +145,7 @@ fn service_main(_args: Vec<OsString>) {
     }
 }
 
-fn handle_message(msg: &Request, config: &mut Config, update_tx: &mpsc::Sender<Config>, logger_handle: &LoggerHandle) -> Result<Response> {
+async fn handle_message(msg: &Request, context: &mut ServiceContext, update_tx: &mpsc::Sender<Config>) -> Result<Response> {
     log::debug!("Received: {:?}", msg);
 
     let res = match msg {
@@ -150,69 +153,74 @@ fn handle_message(msg: &Request, config: &mut Config, update_tx: &mpsc::Sender<C
             if *interval < common::consts::MINIMAL_INTERVAL {
                 Err(anyhow!("Got interval of {}, minimal interval is {}", humantime::format_duration(*interval), humantime::format_duration(common::consts::MINIMAL_INTERVAL)))
             } else {
-                config.service.interval = *interval;
+                context.config.service.interval = *interval;
                 Ok(Response::Nothing)
             }
         }
         Request::AddDomain(domain) => {
-            if config.service.domain.len() >= common::consts::DOMAIN_LENGTH_LIMIT {
+            if context.config.service.domain.len() >= common::consts::DOMAIN_LENGTH_LIMIT {
                 Err(anyhow!("The number of domain to update is limited to {}", common::consts::DOMAIN_LENGTH_LIMIT))
-            } else if config.service.domain.insert(domain.clone()) {
+            } else if context.config.service.domain.insert(domain.clone()) {
                 Ok(Response::Nothing)
             } else {
                 Err(anyhow!("Domain {domain} already exists"))
             }
         }
         Request::RemoveDomain(domain) => {
-            if config.service.domain.remove(domain) {
+            if context.config.service.domain.remove(domain) {
                 Ok(Response::Nothing)
             } else {
                 Err(anyhow!("Domain {domain} does not exist"))
             }
         }
         Request::Token(token) => {
-            config.service.token.replace(token.clone());
+            context.config.service.token.replace(token.clone());
             Ok(Response::Nothing)
         }
         Request::Ipv6(enable) => {
-            if config.service.ipv6.is_some_and(|v| v != *enable) {
-                config.service.ipv6 = Some(*enable);
-                config.service.clear_ip_addresses = true;
+            if context.config.service.ipv6.is_some_and(|v| v != *enable) {
+                context.config.service.ipv6 = Some(*enable);
+                context.config.service.clear_ip_addresses = true;
             }
             Ok(Response::Nothing)
         }
         Request::ForceUpdate => {
-            *config = config::read()?;
+            context.config = config::read()?;
             Ok(Response::Nothing)
         }
         Request::DebugLevel(level) => {
             let new_spec = LogSpecification::parse(level)?;
-            logger_handle.set_new_spec(new_spec);
+            context.logger_handle.set_new_spec(new_spec);
             log::info!("debug level changed to {level}");
             return Ok(Response::Nothing)
         }
         Request::GetConfig => {
-            Ok(Response::Config(config.service.clone()))
+            return Ok(Response::Config(context.config.service.clone()));
+        }
+        Request::GetStatus => {
+            let status = context.last_update_succeeded.lock().await;
+            return Ok(Response::Status(*status));
         }
     }?;
 
-    config.store()?;
-    update_tx.send(config.clone())?;
+    context.config.store()?;
+    update_tx.send(context.config.clone())?;
 
-    log::debug!("New config:\n{config}");
+    log::debug!("New config:\n{}", context.config);
     Ok(res)
 }
 
 async fn send_response(pipe: &mut NamedPipeServer, response: Response) -> Result<()> {
+    log::info!("response is {response:?}");
     let encoded = response.serialize()?;
     pipe.write_all(&encoded)
         .await
         .map_err(|e| anyhow!("{e}"))
 }
 
-async fn service_listening_loop(mut config: Config, update_tx: mpsc::Sender<Config>, logger_handle: LoggerHandle) {
+async fn service_listening_loop(mut context: ServiceContext, update_tx: mpsc::Sender<Config>) {
     // force an update when the service has just started
-    if let Err(_) = update_tx.send(config.clone()) {
+    if let Err(_) = update_tx.send(context.config.clone()) {
         log::error!("Failed to request an update");
     }
 
@@ -239,9 +247,8 @@ async fn service_listening_loop(mut config: Config, update_tx: mpsc::Sender<Conf
                                 continue;
                             }
                         };
-                        match handle_message(&msg, &mut config, &update_tx, &logger_handle) {
+                        match handle_message(&msg, &mut context, &update_tx).await {
                             Err(e) => log::error!("Failed to handle {msg:?}, error: {e}"),
-                            Ok(Response::Nothing) => (),
                             Ok(res) => {
                                 if let Err(e) = send_response(&mut pipe, res).await {
                                     log::error!("Failed to send response: {e}");
@@ -261,9 +268,11 @@ async fn service_listening_loop(mut config: Config, update_tx: mpsc::Sender<Conf
     }
 }
 
-async fn update_ip_loop(receiver: mpsc::Receiver<Config>, initial_config: Config) {
+async fn update_ip_loop(receiver: mpsc::Receiver<Config>, initial_config: Config, last_update_succeeded: Arc<Mutex<bool>>) {
     let mut config = initial_config;
     let mut last_run = Instant::now();
+    let mut already_warned_token = false;
+    let mut already_warned_domain = false;
 
     loop {
         let mut force_update = false;
@@ -273,17 +282,30 @@ async fn update_ip_loop(receiver: mpsc::Receiver<Config>, initial_config: Config
         }
 
         if config.service.token.is_none() {
-            log::warn!("No token is configured");
+            if !already_warned_token {
+                already_warned_token = true;
+                log::warn!("No token is configured");
+            }
             continue;
         }
+        already_warned_token = false;
 
         if config.service.domain.is_empty() {
-            log::warn!("No domain is conifgured");
+            if !already_warned_domain {
+                already_warned_domain = true;
+                log::warn!("No domain is conifgured");
+            }
             continue;
         }
+        already_warned_domain = false;
 
         if last_run.elapsed() >= config.service.interval || force_update {
-            duckdns::update(&config).await;
+            let mut succeeded = last_update_succeeded.lock().await;
+            *succeeded = duckdns::update(&config)
+                .await
+                .is_ok();
+            log::info!("Update {}",
+            if *succeeded { "succeeded" } else { "failed" });
             last_run = Instant::now();
             config.service.clear_ip_addresses = false;
         }
@@ -295,6 +317,7 @@ async fn update_ip_loop(receiver: mpsc::Receiver<Config>, initial_config: Config
 
 fn run_service(context: ServiceContext, shutdown_rx: mpsc::Receiver<()>) -> Result<()> {
     let (update_tx, update_rx) = mpsc::channel();
+    let status_handle = context.status_handle.clone();
 
     // Tell the system that the service is running now
     set_service_status(&context.status_handle, ServiceState::Running, 0)?;
@@ -302,9 +325,9 @@ fn run_service(context: ServiceContext, shutdown_rx: mpsc::Receiver<()>) -> Resu
 
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
-        let listening_loop_handle = tokio::spawn(service_listening_loop(context.config.clone(), update_tx, context.logger_handle));
+        let update_ip_handle = tokio::spawn(update_ip_loop(update_rx, context.config.clone(), context.last_update_succeeded.clone()));
+        let listening_loop_handle = tokio::spawn(service_listening_loop(context, update_tx));
         let shutdown_handle = tokio::spawn(async move {shutdown_rx.recv().unwrap();});
-        let update_ip_handle = tokio::spawn(update_ip_loop(update_rx, context.config.clone()));
 
         tokio::select! {
             _ = listening_loop_handle => {
@@ -319,7 +342,7 @@ fn run_service(context: ServiceContext, shutdown_rx: mpsc::Receiver<()>) -> Resu
         }
     });
 
-    set_service_status(&context.status_handle, ServiceState::Stopped, 0)?;
+    set_service_status(&status_handle, ServiceState::Stopped, 0)?;
     log::info!("Service has stopped");
 
     Ok(())

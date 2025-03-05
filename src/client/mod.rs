@@ -15,15 +15,9 @@ async fn send_message(msg: Request) -> Result<Response> {
     let encode = msg.serialize()?;
     client.write_all(&encode).await?;
 
-    match msg {
-        Request::GetConfig => {
-            let mut buf = vec![0; std::mem::size_of::<Response>()];
-            client.read(&mut buf).await?;
-            let res = Response::deserialize(&buf);
-            res
-        }
-        _ => Ok(Response::Nothing),
-    }
+    let mut buf = vec![0; std::mem::size_of::<Response>()];
+    client.read(&mut buf).await?;
+    Response::deserialize(&buf)
 }
 
 pub async fn set_interval(duration: Duration) -> Result<()> {
@@ -70,7 +64,23 @@ pub async fn print_configuration() -> Result<()> {
     let msg = Request::GetConfig;
     match send_message(msg).await? {
         Response::Config(config) => println!("{config}"),
-        _ => eprintln!("Bad response"),
+        _ => {
+            return Err(anyhow!("Bad response"));
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn get_last_status() -> Result<()> {
+    let msg = Request::GetStatus;
+    match send_message(msg).await? {
+        Response::Status(status) =>
+            println!("Last update {}.",
+                if status { "succeeded" } else { "failed" }),
+        _ => {
+            return Err(anyhow!("Bad response"));
+        }
     }
 
     Ok(())
