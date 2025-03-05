@@ -19,7 +19,7 @@ use flexi_logger::{DeferredNow, Record};
 
 use crate::common::{self,
     config::Config,
-    message::{Request, Response, Serialize, Deserialize},
+    message::{ServiceRequest, Request, Response, Serialize, Deserialize},
 };
 
 mod duckdns;
@@ -154,45 +154,45 @@ async fn handle_message(msg: &Request, context: &mut ServiceContext, update_tx: 
                 Err(anyhow!("Got interval of {}, minimal interval is {}", humantime::format_duration(*interval), humantime::format_duration(common::consts::MINIMAL_INTERVAL)))
             } else {
                 context.config.service.interval = *interval;
-                Ok(Response::Nothing)
+                Ok(Response::Ok)
             }
         }
         Request::AddDomain(domain) => {
             if context.config.service.domain.len() >= common::consts::DOMAIN_LENGTH_LIMIT {
                 Err(anyhow!("The number of domain to update is limited to {}", common::consts::DOMAIN_LENGTH_LIMIT))
             } else if context.config.service.domain.insert(domain.clone()) {
-                Ok(Response::Nothing)
+                Ok(Response::Ok)
             } else {
                 Err(anyhow!("Domain {domain} already exists"))
             }
         }
         Request::RemoveDomain(domain) => {
             if context.config.service.domain.remove(domain) {
-                Ok(Response::Nothing)
+                Ok(Response::Ok)
             } else {
                 Err(anyhow!("Domain {domain} does not exist"))
             }
         }
         Request::Token(token) => {
             context.config.service.token.replace(token.clone());
-            Ok(Response::Nothing)
+            Ok(Response::Ok)
         }
         Request::Ipv6(enable) => {
             if context.config.service.ipv6.is_some_and(|v| v != *enable) {
                 context.config.service.ipv6 = Some(*enable);
                 context.config.service.clear_ip_addresses = true;
             }
-            Ok(Response::Nothing)
+            Ok(Response::Ok)
         }
         Request::ForceUpdate => {
             context.config = config::read()?;
-            Ok(Response::Nothing)
+            Ok(Response::Ok)
         }
         Request::DebugLevel(level) => {
             let new_spec = LogSpecification::parse(level)?;
             context.logger_handle.set_new_spec(new_spec);
             log::info!("debug level changed to {level}");
-            return Ok(Response::Nothing)
+            return Ok(Response::Ok)
         }
         Request::GetConfig => {
             return Ok(Response::Config(context.config.service.clone()));
@@ -234,20 +234,28 @@ async fn service_listening_loop(mut context: ServiceContext, update_tx: mpsc::Se
                 } 
                 log::debug!("Client connected");
 
-                let mut buffer = vec![0; std::mem::size_of::<Request>()];
+                let mut buffer = vec![0; std::mem::size_of::<ServiceRequest>()];
                 match pipe.read_with_timeout(&mut buffer, Duration::from_secs(common::consts::PIPE_TIMEOUT_IN_SEC)).await {
                     Ok(0) => {
                         log::debug!("Client disconnected");
                     }
                     Ok(_bytes_read) => {
-                        let msg = match Request::deserialize(&buffer) {
+                        let msg = match ServiceRequest::deserialize(&buffer) {
                             Ok(m) => m,
                             Err(e) => {
                                 log::error!("Failed to deserialize message, error: {e}");
                                 continue;
                             }
                         };
-                        match handle_message(&msg, &mut context, &update_tx).await {
+                        if !msg.is_compatiable() {
+                            log::error!("Client version incompatible. Client version: {}, Service version: {}", msg.version(), common::strings::VERSION);
+                            let res = Response::Err("Client version incompatible".to_string());
+                            if let Err(e) = send_response(&mut pipe, res).await {
+                                log::error!("Failed to send response: {e}");
+                            }
+                            continue;
+                        }
+                        match handle_message(msg.request(), &mut context, &update_tx).await {
                             Err(e) => log::error!("Failed to handle {msg:?}, error: {e}"),
                             Ok(res) => {
                                 if let Err(e) = send_response(&mut pipe, res).await {

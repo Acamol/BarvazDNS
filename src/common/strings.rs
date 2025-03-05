@@ -40,6 +40,7 @@ interval = "1 day"
 // log
 pub const LOG_FILE_BASENAME: &str = "service";
 pub const ENV_VAR_LOG_LEVEL: &str = "BARVAZ_LOG_LEVEL";
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 
 #[cfg(test)]
