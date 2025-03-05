@@ -202,8 +202,10 @@ async fn update_ip_loop(receiver: mpsc::Receiver<Config>, initial_config: Config
     let mut last_run = Instant::now();
 
     loop {
+        let mut force_update = false;
         if let Ok(c) = receiver.try_recv() {
             config = c;
+            force_update = true;
         }
 
         if config.service.token.is_none() {
@@ -216,7 +218,7 @@ async fn update_ip_loop(receiver: mpsc::Receiver<Config>, initial_config: Config
             continue;
         }
 
-        if last_run.elapsed() >= config.service.interval {
+        if last_run.elapsed() >= config.service.interval || force_update {
             duckdns::update(&config).await;
             last_run = Instant::now();
             config.service.ipv6_config_changed = false;
