@@ -26,6 +26,7 @@ mod config;
 mod named_pipe_extension;
 use named_pipe_extension::NamedPipeServerWithTimeout;
 
+
 define_windows_service!(duckdns_service_main, service_main);
 
 pub fn service_dispatcher() -> Result<()> {
@@ -69,6 +70,29 @@ fn logger_init() -> Result<LoggerHandle> {
         .map_err(|e| anyhow!("{e}"))
 }
 
+fn set_service_status(status_handle: &ServiceStatusHandle, current_state: ServiceState, exit_code: u32) -> Result<(), windows_service::Error> {
+    let next_status = ServiceStatus {
+        service_type: ServiceType::OWN_PROCESS,
+        current_state,
+        controls_accepted: if current_state == ServiceState::Running
+            { ServiceControlAccept::STOP
+            } else { ServiceControlAccept::empty() },
+        exit_code: ServiceExitCode::Win32(exit_code),
+        checkpoint: 0,
+        wait_hint: if current_state == ServiceState::StartPending
+        { Duration::from_secs(10) } else { Duration::default() },
+        process_id: None,
+    };
+
+    status_handle.set_service_status(next_status)
+}
+
+struct ServiceContext {
+    logger_handle: LoggerHandle,
+    status_handle: ServiceStatusHandle,
+    config: Config,
+}
+
 fn service_main(_args: Vec<OsString>) {
     let (shutdown_tx, shutdown_rx) = mpsc::channel();
 
@@ -86,30 +110,20 @@ fn service_main(_args: Vec<OsString>) {
     // Register system service event handler
     let status_handle = service_control_handler::register(common::strings::SERVICE_NAME, event_handler).unwrap();
 
-    let next_status = ServiceStatus {
-        service_type: ServiceType::OWN_PROCESS,
-        current_state: ServiceState::StartPending,
-        controls_accepted: ServiceControlAccept::empty(),
-        exit_code: ServiceExitCode::Win32(0),
-        checkpoint: 0,
-        wait_hint: Duration::from_secs(10),
-        process_id: None,
-    };
-
-	status_handle.set_service_status(next_status).unwrap();
+    set_service_status(&status_handle, ServiceState::StartPending, 0).unwrap();
 
     // also creates the app directory if it does not exist yet
     let config = match config::read() {
         Ok(c) => c,
         Err(_) => {
-            todo!("update status")
+            set_service_status(&status_handle, ServiceState::Stopped, 1).unwrap();
+            return;
         }
     };
 
 	let logger_handle = match logger_init() {
         Err(_) => {
-            todo!("update status");
-            #[allow(unreachable_code)]
+            set_service_status(&status_handle, ServiceState::Stopped, 2).unwrap();
             return;
         }
         Ok(handle) => handle,
@@ -117,7 +131,13 @@ fn service_main(_args: Vec<OsString>) {
 
     log::debug!("Service is running with the following configuration:\n{config}");
 
-    if let Err(e) = run_service(status_handle, shutdown_rx, config, logger_handle) {
+    let context = ServiceContext {
+        status_handle,
+        logger_handle,
+        config,
+    };
+
+    if let Err(e) = run_service(context, shutdown_rx) {
         log::error!("Service failed: {:?}", e);
     }
 }
@@ -235,7 +255,7 @@ async fn service_listening_loop(mut config: Config, update_tx: mpsc::Sender<Conf
                 }
             }
             Err(e) => {
-                log::info!("Falied to create pipe: {e:?}")
+                log::error!("Falied to create pipe: {e:?}")
             }
         }
     }
@@ -253,12 +273,12 @@ async fn update_ip_loop(receiver: mpsc::Receiver<Config>, initial_config: Config
         }
 
         if config.service.token.is_none() {
-            log::debug!("No token is configured");
+            log::warn!("No token is configured");
             continue;
         }
 
         if config.service.domain.is_empty() {
-            log::debug!("No domain is conifgured");
+            log::warn!("No domain is conifgured");
             continue;
         }
 
@@ -273,27 +293,18 @@ async fn update_ip_loop(receiver: mpsc::Receiver<Config>, initial_config: Config
     }
 }
 
-fn run_service(status_handle: ServiceStatusHandle, shutdown_rx: mpsc::Receiver<()>, config: Config, logger_handle: LoggerHandle) -> Result<()> {
+fn run_service(context: ServiceContext, shutdown_rx: mpsc::Receiver<()>) -> Result<()> {
     let (update_tx, update_rx) = mpsc::channel();
-    let next_status = ServiceStatus {
-        service_type: ServiceType::OWN_PROCESS,
-        current_state: ServiceState::Running,
-        controls_accepted: ServiceControlAccept::STOP,
-        exit_code: ServiceExitCode::Win32(0),
-        checkpoint: 0,
-        wait_hint: Duration::default(),
-        process_id: None,
-    };
 
     // Tell the system that the service is running now
-    status_handle.set_service_status(next_status)?;
+    set_service_status(&context.status_handle, ServiceState::Running, 0)?;
     log::info!("Service has started");
 
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
-        let listening_loop_handle = tokio::spawn(service_listening_loop(config.clone(), update_tx, logger_handle));
+        let listening_loop_handle = tokio::spawn(service_listening_loop(context.config.clone(), update_tx, context.logger_handle));
         let shutdown_handle = tokio::spawn(async move {shutdown_rx.recv().unwrap();});
-        let update_ip_handle = tokio::spawn(update_ip_loop(update_rx, config.clone()));
+        let update_ip_handle = tokio::spawn(update_ip_loop(update_rx, context.config.clone()));
 
         tokio::select! {
             _ = listening_loop_handle => {
@@ -303,22 +314,12 @@ fn run_service(status_handle: ServiceStatusHandle, shutdown_rx: mpsc::Receiver<(
                 log::debug!("shutdown has been initiated");
             }
             _ = update_ip_handle => {
-                log::error!("Cannot update DuckDNS")
+                log::error!("Cannot update DuckDNS");
             }
         }
     });
 
-    let next_status = ServiceStatus {
-        service_type: ServiceType::OWN_PROCESS,
-        current_state: ServiceState::Stopped,
-        controls_accepted: ServiceControlAccept::empty(),
-        exit_code: ServiceExitCode::Win32(0),
-        checkpoint: 0,
-        wait_hint: Duration::default(),
-        process_id: None,
-    };
-
-    status_handle.set_service_status(next_status)?;
+    set_service_status(&context.status_handle, ServiceState::Stopped, 0)?;
     log::info!("Service has stopped");
 
     Ok(())
