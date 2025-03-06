@@ -25,6 +25,17 @@ fn service_is_running() -> Result<bool> {
     Ok(matches!(service.query_status()?.current_state, ServiceState::Running | ServiceState::StartPending))
 }
 
+/// Installs the Windows service.
+///
+/// This function attempts to install the application as a Windows service.
+/// Upon successful installation, it prints a success message to the console.
+/// If an error occurs during the installation process, it returns an `Err`
+/// containing the error details, and no success message is printed.
+///
+/// # Returns
+///
+/// * `Ok(())` if the service was successfully installed.
+/// * `Err(e)` where `e` is an error type describing the failure, if the service installation failed.
 pub fn install_service() -> Result<()> {
     let manager_access = ServiceManagerAccess::CONNECT | ServiceManagerAccess::CREATE_SERVICE;
     let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
@@ -49,6 +60,17 @@ pub fn install_service() -> Result<()> {
     Ok(println!("{} is installed", SERVICE_DISPLAY_NAME))
 }
 
+/// Uninstalls the Windows service.
+///
+/// Attempts to stop and delete the Windows service.
+/// If the service is running, it tries to stop it. Then, it marks the service for deletion.
+/// It polls for up to 5 seconds to confirm the service is uninstalled, printing a success
+/// message if successful or a "marked for deletion" message if the timeout is reached.
+///
+/// # Returns
+///
+/// * `Ok(())` on successful uninstallation or marking for deletion.
+/// * `Err(e)` if an error occurs during the process.
 pub fn uninstall_service() -> Result<()> {
     let manager_access = ServiceManagerAccess::CONNECT;
     let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
@@ -85,6 +107,16 @@ pub fn uninstall_service() -> Result<()> {
     Ok(println!("{SERVICE_DISPLAY_NAME} is marked for deletion."))
 }
 
+/// Starts the Windows service.
+///
+/// Attempts to start the Windows service.
+/// Returns an error if the service is already running.
+/// If successful, prints a message indicating the service is running.
+///
+/// # Returns
+///
+/// * `Ok(())` if the service started successfully.
+/// * `Err(e)` if the service failed to start or was already running.
 pub fn start_service() -> Result<()> {
     if service_is_running()? {
         return Err(anyhow!("{SERVICE_DISPLAY_NAME} is already running"));
@@ -112,6 +144,17 @@ pub fn start_service() -> Result<()> {
     }
 }
 
+/// Stops the Windows service.
+///
+/// Attempts to stop the Windows service.
+/// Returns an error if the service is not running.
+/// Polls for up to 5 seconds to confirm the service has stopped, printing
+/// appropriate messages.
+///
+/// # Returns
+///
+/// * `Ok(())` if the service stopped successfully.
+/// * `Err(e)` if the service failed to stop or was not running.
 pub fn stop_service() -> Result<()> {
     if !service_is_running()? {
         return Err(anyhow!("{SERVICE_DISPLAY_NAME} is not running"));

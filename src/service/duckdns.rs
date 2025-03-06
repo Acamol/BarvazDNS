@@ -35,6 +35,21 @@ fn clear_ip_addresses(config: &Config) -> Result<minreq::Response, minreq::Error
 	minreq::get(url) .send()
 }
 
+/// Updates DuckDNS with the provided configuration.
+///
+/// This function generates a DuckDNS update request based on the provided `config`,
+/// sends the request, and handles the response. If the configuration specifies, it
+/// also clears existing IP addresses on DuckDNS before sending the update.
+///
+/// # Arguments
+///
+/// * `config`: The configuration used to generate the DuckDNS update request.
+///
+/// # Returns
+///
+/// * `Ok(())` if the update was successful.
+/// * `Err(e)` if an error occurred during the update process, including request
+///   generation, clearing IP addresses, or sending the update.
 pub async fn update(config: &Config) -> Result<()> {
 	let url = match generate_request(&config).await {
 		Ok(u) => u,
