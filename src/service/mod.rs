@@ -146,7 +146,7 @@ fn service_main(_args: Vec<OsString>) {
 }
 
 async fn handle_message(msg: &Request, context: &mut ServiceContext, update_tx: &mpsc::Sender<Config>) -> Result<Response> {
-    log::debug!("Received: {:?}", msg);
+    log::info!("Received: {:?}", msg);
 
     let res = match msg {
         Request::Interval(interval) => {

@@ -33,6 +33,7 @@ pub fn install_service() -> Result<()> {
     };
     let service = service_manager.create_service(&service_info, ServiceAccess::CHANGE_CONFIG)?;
     service.set_description(common::strings::SERVICE_DESCRIPTION)?;
+
     Ok(())
 }
 
@@ -55,8 +56,6 @@ pub fn uninstall_service() -> Result<()> {
     // Explicitly close our open handle to the service. This is automatically called when `service` goes out of scope.
     drop(service);
 
-    // Win32 API does not give us a way to wait for service deletion.
-    // To check if the service is deleted from the database, we have to poll it ourselves.
     let start = Instant::now();
     let timeout = Duration::from_secs(5);
     while start.elapsed() < timeout {

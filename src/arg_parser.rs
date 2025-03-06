@@ -49,6 +49,7 @@ pub enum IPv6SubCommands {
 #[derive(ValueEnum, Clone, Debug)]
 pub enum DebugLevelOption {
     Error,
+    Warn,
     Info,
     Debug,
 }
@@ -57,6 +58,7 @@ impl fmt::Display for DebugLevelOption {
  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
         Self::Error => write!(f, "error"),
+        Self::Warn => write!(f, "warn"),
         Self::Info => write!(f, "info"),
         Self::Debug => write!(f, "debug"),
     }
@@ -65,19 +67,19 @@ impl fmt::Display for DebugLevelOption {
 
 #[derive(Parser, Debug)]
 pub enum ClientSubcommands {
-    /// Sets the interval in human-readable time at which the service checks for and updates your public IP address.
-    Interval {
-        #[arg(value_parser = parse_humantime_duration)]
-        interval: Duration,
-    },
+    /// Adds or removes a DuckDNS domain name from the service.
+    #[command(subcommand)]
+    Domain(DomainSubCommands),
     /// Sets the token used to update your DuckDNS domains.
     Token {
         #[arg(value_parser)]
         token: String,
     },
-    /// Adds or removes a DuckDNS domain name from the service.
-    #[command(subcommand)]
-    Domain(DomainSubCommands),
+    /// Sets the interval in human-readable time at which the service checks for and updates your public IP address.
+    Interval {
+        #[arg(value_parser = parse_humantime_duration)]
+        interval: Duration,
+    },
     /// Enables or disables IPv6 address updates for your DuckDNS domains.
     #[command(subcommand)]
     Ipv6(IPv6SubCommands),
@@ -85,26 +87,13 @@ pub enum ClientSubcommands {
     Update,
     /// Prints the current service configuration.
     ShowConfig,
+    /// Retrieves the last update attempt status.
+    Status,
     #[clap(hide = true)]
     Debug {
         #[arg(value_enum)]
         level: DebugLevelOption,
     },
-    /// Retrieves the last update attempt status.
-    Status,
-}
-
-#[derive(Parser, Debug)]
-pub struct ClientSetArgs {
-    /// Sets the interval at which the service checks for and updates your public IP address, using human-readable time.
-    #[arg(short, long, value_parser = parse_humantime_duration)]
-    interval: Option<Duration>,
-    /// Sets the authentication token used to update your DuckDNS domains.
-    #[arg(short, long)]
-    token: Option<String>,
-    /// Sets the DuckDNS domain name that will be updated.
-    #[arg(short, long)]
-    domain: Option<String>,
 }
 
 #[derive(Parser, Debug)]
