@@ -5,13 +5,25 @@ use windows_service::{
     service_manager::{ServiceManager, ServiceManagerAccess},
 };
 use windows_sys::Win32::Foundation::ERROR_SERVICE_DOES_NOT_EXIST;
+
 use std::ffi::OsString;
 use std::{
     thread::sleep,
     time::{Duration, Instant},
 };
 
-use crate::common::{self, strings::SERVICE_NAME};
+use crate::common::strings::{SERVICE_DESCRIPTION, SERVICE_NAME, SERVICE_DISPLAY_NAME};
+
+
+fn service_is_running() -> Result<bool> {
+    let manager_access = ServiceManagerAccess::CONNECT;
+    let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
+
+    let service_access = ServiceAccess::QUERY_STATUS;
+    let service = service_manager.open_service(SERVICE_NAME, service_access)?;
+
+    Ok(matches!(service.query_status()?.current_state, ServiceState::Running | ServiceState::StartPending))
+}
 
 pub fn install_service() -> Result<()> {
     let manager_access = ServiceManagerAccess::CONNECT | ServiceManagerAccess::CREATE_SERVICE;
@@ -21,7 +33,7 @@ pub fn install_service() -> Result<()> {
 
     let service_info = ServiceInfo {
         name: OsString::from(SERVICE_NAME),
-        display_name: OsString::from(common::strings::SERVICE_DISPLAY_NAME),
+        display_name: OsString::from(SERVICE_DISPLAY_NAME),
         service_type: ServiceType::OWN_PROCESS,
         start_type: ServiceStartType::OnDemand, // TODO: later should be changed
         error_control: ServiceErrorControl::Normal,
@@ -32,9 +44,9 @@ pub fn install_service() -> Result<()> {
         account_password: None,
     };
     let service = service_manager.create_service(&service_info, ServiceAccess::CHANGE_CONFIG)?;
-    service.set_description(common::strings::SERVICE_DESCRIPTION)?;
+    service.set_description(SERVICE_DESCRIPTION)?;
 
-    Ok(())
+    Ok(println!("{} is installed", SERVICE_DISPLAY_NAME))
 }
 
 pub fn uninstall_service() -> Result<()> {
@@ -63,18 +75,21 @@ pub fn uninstall_service() -> Result<()> {
             service_manager.open_service(SERVICE_NAME, ServiceAccess::QUERY_STATUS)
         {
             if e.raw_os_error() == Some(ERROR_SERVICE_DOES_NOT_EXIST as i32) {
-                println!("{SERVICE_NAME} is deleted.");
+                println!("{SERVICE_DISPLAY_NAME} is uninstalled.");
                 return Ok(());
             }
         }
         sleep(Duration::from_secs(1));
     }
-    println!("{SERVICE_NAME} is marked for deletion.");
 
-    Ok(())
+    Ok(println!("{SERVICE_DISPLAY_NAME} is marked for deletion."))
 }
 
 pub fn start_service() -> Result<()> {
+    if service_is_running()? {
+        return Err(anyhow!("{SERVICE_DISPLAY_NAME} is already running"));
+    }
+
     let manager_access = ServiceManagerAccess::CONNECT;
     let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
 
@@ -88,10 +103,20 @@ pub fn start_service() -> Result<()> {
             }
             _ => anyhow!("{e:#?}")
         }
-    })
+    })?;
+
+    return if service_is_running()? {
+        Ok(println!("{SERVICE_DISPLAY_NAME} is running"))
+    } else {
+        Err(anyhow!("Failed to start {SERVICE_DISPLAY_NAME}"))
+    }
 }
 
 pub fn stop_service() -> Result<()> {
+    if !service_is_running()? {
+        return Err(anyhow!("{SERVICE_DISPLAY_NAME} is not running"));
+    }
+
     let manager_access = ServiceManagerAccess::CONNECT;
     let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
 
@@ -101,25 +126,23 @@ pub fn stop_service() -> Result<()> {
     let status = service.stop();
 
     return match status {
-        Ok(state) if state.current_state != ServiceState::Stopped && state.current_state != ServiceState::StopPending => {
-            eprintln!("Cannot stop the service. Current state is {:?}", state.current_state);
-            Ok(())
-        }
-        Ok(state) if state.current_state == ServiceState::StopPending => {
-            println!("{SERVICE_NAME} is stop pending"); 
+        Ok(state) if matches!(state.current_state, ServiceState::StopPending | ServiceState::Running) => {
+            println!("{SERVICE_DISPLAY_NAME} is stop pending"); 
 
             let start = Instant::now();
             let timeout = Duration::from_secs(5);
             while start.elapsed() < timeout {
                 if service.query_status()?.current_state == ServiceState::Stopped {
-                    println!("{SERVICE_NAME} is stopped");
-                    return Ok(())
+                    return Ok(println!("{SERVICE_DISPLAY_NAME} has stopped"));
                 }
                 sleep(Duration::from_secs(1));
             }
             Ok(())
         }
-        Ok(_) => Ok(()),
+        Ok(state) if state.current_state == ServiceState::Stopped => {
+            Ok(println!("{SERVICE_DISPLAY_NAME} has stopped"))
+        }
+        Ok(state) => Err(anyhow!("{SERVICE_DISPLAY_NAME} is in an invalid state {:?}", state.current_state)),
         Err(windows_service::Error::Winapi(e)) => Err(anyhow!("code {}", e.raw_os_error().unwrap_or_default())),
         Err(_) => Ok(()),
     }
