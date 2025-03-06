@@ -228,14 +228,14 @@ async fn service_listening_loop(mut context: ServiceContext, update_tx: mpsc::Se
         match ServerOptions::new().create(common::strings::PIPE_NAME) {
             Ok(mut pipe) => {
                 log::debug!("Waiting for a client...");
-                if let Err(e) = pipe.connect_with_timeout(Duration::from_secs(common::consts::PIPE_TIMEOUT_IN_SEC)).await {
+                if let Err(e) = pipe.connect_with_timeout(common::consts::PIPE_TIMEOUT).await {
                     log::debug!("Pipe connection error: {:?}", e);
                     continue;
                 } 
                 log::debug!("Client connected");
 
                 let mut buffer = vec![0; std::mem::size_of::<ServiceRequest>()];
-                match pipe.read_with_timeout(&mut buffer, Duration::from_secs(common::consts::PIPE_TIMEOUT_IN_SEC)).await {
+                match pipe.read_with_timeout(&mut buffer, common::consts::PIPE_TIMEOUT).await {
                     Ok(0) => {
                         log::debug!("Client disconnected");
                     }
@@ -318,8 +318,9 @@ async fn update_ip_loop(receiver: mpsc::Receiver<Config>, initial_config: Config
             config.service.clear_ip_addresses = false;
         }
 
-        // let other tasks a chance to advance too
-        tokio::task::yield_now().await;
+        // let other tasks a chance to advance too,
+        // and reduce needless cpu usage
+        tokio::time::sleep(common::consts::UPDATE_IP_SLEEP_TIME).await;
     }
 }
 
