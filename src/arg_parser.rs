@@ -14,24 +14,24 @@ pub struct ServiceCommands {
 
 #[derive(Subcommand, Debug)]
 pub enum ServiceSubcommands {
-    /// Install the service.
+    /// Installs the service.
     Install,
-    /// Uninstall the service.
+    /// Uninstalls the service.
     Uninstall,
-    /// Start the service.
+    /// Starts the service.
     Start,
-    /// Stop the service.
+    /// Stops the service.
     Stop,
 }
 
 #[derive(Subcommand, Debug)]
 pub enum DomainSubCommands {
-    /// Add a DuckDNS domain to the service.
+    /// Adds a subdomain.
     Add {
         #[arg(value_parser)]
         domain: String,
     },
-    /// Remove a DuckDNS domain from the service.
+    /// Removes a subdomain.
     Remove {
         #[arg(value_parser)]
         domain: String,
@@ -40,9 +40,9 @@ pub enum DomainSubCommands {
 
 #[derive(Subcommand, Debug)]
 pub enum IPv6SubCommands {
-    /// Enables IPv6 address updates for your DuckDNS domains.
+    /// Enables IPv6 updates.
     Enable,
-    /// Disables IPv6 address updates for your DuckDNS domains.
+    /// Disables IPv6 updates.
     Disable,
 }
 
@@ -70,24 +70,24 @@ pub enum ClientSubcommands {
     /// Adds or removes a DuckDNS domain name from the service.
     #[command(subcommand)]
     Domain(DomainSubCommands),
-    /// Sets the token used to update your DuckDNS domains.
+    /// Sets the DuckDNS token.
     Token {
         #[arg(value_parser)]
         token: String,
     },
-    /// Sets the interval in human-readable time at which the service checks for and updates your public IP address.
+    /// Sets the update interval (in human-readable form. For example: 1h 30m, for every 1 hour and 30 minutes).
     Interval {
         #[arg(value_parser = parse_humantime_duration)]
         interval: Duration,
     },
-    /// Enables or disables IPv6 address updates for your DuckDNS domains.
+    /// Enables or disables IPv6 updates.
     #[command(subcommand)]
     Ipv6(IPv6SubCommands),
-    /// Forces an update based on the configuration file.
+    /// Forces an immediate update (based on the configuration file).
     Update,
-    /// Prints the current service configuration.
-    ShowConfig,
-    /// Retrieves the last update attempt status.
+    /// Displays the current configuration.
+    Config,
+    /// Displays the last update attempt status.
     Status,
     #[clap(hide = true)]
     Debug {
