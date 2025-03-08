@@ -12,7 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::common::strings::{SERVICE_DESCRIPTION, SERVICE_NAME, SERVICE_DISPLAY_NAME};
+use crate::{arg_parser::InstallArgs, common::strings::{SERVICE_DESCRIPTION, SERVICE_DISPLAY_NAME, SERVICE_NAME}};
 
 
 fn service_is_running() -> Result<bool> {
@@ -36,7 +36,7 @@ fn service_is_running() -> Result<bool> {
 ///
 /// * `Ok(())` if the service was successfully installed.
 /// * `Err(e)` where `e` is an error type describing the failure, if the service installation failed.
-pub fn install_service() -> Result<()> {
+pub fn install_service(args: InstallArgs) -> Result<()> {
     let manager_access = ServiceManagerAccess::CONNECT | ServiceManagerAccess::CREATE_SERVICE;
     let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
 
@@ -46,7 +46,7 @@ pub fn install_service() -> Result<()> {
         name: OsString::from(SERVICE_NAME),
         display_name: OsString::from(SERVICE_DISPLAY_NAME),
         service_type: ServiceType::OWN_PROCESS,
-        start_type: ServiceStartType::OnDemand, // TODO: later should be changed
+        start_type: if args.no_startup { ServiceStartType::OnDemand } else {  ServiceStartType::AutoStart },
         error_control: ServiceErrorControl::Normal,
         executable_path: service_binary_path,
         launch_arguments: vec![],

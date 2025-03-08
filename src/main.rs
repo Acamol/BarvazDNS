@@ -37,7 +37,7 @@ async fn main() -> Result<()> {
     match args.command {
         Command::Service(service_args) => 
             match service_args.command {
-                ServiceSubcommands::Install => handle_service_result(service_manager::install_service(), "install"),
+                ServiceSubcommands::Install(args) => handle_service_result(service_manager::install_service(args), "install"),
                 ServiceSubcommands::Uninstall => handle_service_result(service_manager::uninstall_service(), "uninstall"),
                 ServiceSubcommands::Start => handle_service_result(service_manager::start_service(), "start"),
                 ServiceSubcommands::Stop => handle_service_result(service_manager::stop_service(), "stop"),
@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
                 ClientSubcommands::Ipv6(IPv6SubCommands::Disable) => client::disable_ipv6().await?,
                 ClientSubcommands::Update => client::force_update().await?,
                 ClientSubcommands::Debug { level } => client::update_debug_level(level.to_string()).await?,
-                ClientSubcommands::ShowConfig => client::print_configuration().await?,
+                ClientSubcommands::Config => client::print_configuration().await?,
                 ClientSubcommands::Status => client::get_last_status().await?,
             }
         }

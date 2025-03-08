@@ -1,9 +1,8 @@
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand, ValueEnum, Args};
 use std::{fmt, time::Duration};
 use humantime::{format_duration, parse_duration};
 
 use crate::common;
-
 
 
 #[derive(Parser, Debug)]
@@ -15,13 +14,20 @@ pub struct ServiceCommands {
 #[derive(Subcommand, Debug)]
 pub enum ServiceSubcommands {
     /// Installs the service.
-    Install,
+    Install(InstallArgs),
     /// Uninstalls the service.
     Uninstall,
     /// Starts the service.
     Start,
     /// Stops the service.
     Stop,
+}
+
+#[derive(Args, Debug)]
+pub struct InstallArgs {
+    /// Disables startup on boot (enabled by default)
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    pub no_startup: bool,
 }
 
 #[derive(Subcommand, Debug)]
