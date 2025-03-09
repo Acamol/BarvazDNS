@@ -55,22 +55,21 @@ BarvazDNS provides a comprehensive command-line interface for managing the servi
 
 
 * `BarvazDNS`: Displays general help and available commands.
+* `BarvazDNS domain add "yourdomain"`: Adds a subdomain.
+* `BarvazDNS domain remove "yourdomain"`: Removes a subdomain.
+* `BarvazDNS token "your_token"`: Sets the DuckDNS token.
+* `BarvazDNS interval "5h"`: Sets the update interval.
+* `BarvazDNS ipv6 enable`: Enables IPv6 updates.
+* `BarvazDNS ipv6 disable`: Disables IPv6 updates.
+* `BarvazDNS update`: Forces an immediate update.
+* `BarvazDNS config`: Displays the current configuration.
+* `BarvazDNS status`: Displays the last update attempt status.
 * `BarvazDNS service`: Service related commands.
     * `BarvazDNS service install`: Installs the service.
     * `BarvazDNS service install --no-startup` Installs the service without start on startup.
     * `BarvazDNS service uninstall`: Uninstalls the service.
     * `BarvazDNS service start`: Starts the service.
     * `BarvazDNS service stop`: Stops the service.
-* `BarvazDNS client`: Client related commands.
-    * `BarvazDNS client domain add "yourdomain"`: Adds a subdomain.
-    * `BarvazDNS client domain remove "yourdomain"`: Removes a subdomain.
-    * `BarvazDNS client token "your_token"`: Sets the DuckDNS token.
-    * `BarvazDNS client interval "5h"`: Sets the update interval.
-    * `BarvazDNS client ipv6 enable`: Enables IPv6 updates.
-    * `BarvazDNS client ipv6 disable`: Disables IPv6 updates.
-    * `BarvazDNS client update`: Forces an immediate update.
-    * `BarvazDNS client config`: Displays the current configuration.
-    * `BarvazDNS client status`: Displays the last update attempt status.
 
 ### Logging
 

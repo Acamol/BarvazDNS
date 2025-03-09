@@ -73,6 +73,19 @@ impl fmt::Display for DebugLevelOption {
 
 #[derive(Parser, Debug)]
 pub enum ClientSubcommands {
+
+}
+
+#[derive(Parser, Debug)]
+pub struct ClientCommands {
+    #[command(subcommand)]
+    pub command: ClientSubcommands,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Command {
+    /// Service related commands
+    Service(ServiceCommands),
     /// Adds or removes a DuckDNS domain name from the service.
     #[command(subcommand)]
     Domain(DomainSubCommands),
@@ -99,21 +112,7 @@ pub enum ClientSubcommands {
     Debug {
         #[arg(value_enum)]
         level: DebugLevelOption,
-    },
-}
-
-#[derive(Parser, Debug)]
-pub struct ClientCommands {
-    #[command(subcommand)]
-    pub command: ClientSubcommands,
-}
-
-#[derive(Subcommand, Debug)]
-pub enum Command {
-    /// Service related commands
-    Service(ServiceCommands),
-    /// Client related commands
-    Client(ClientCommands),
+    }
 }
 
 #[derive(Parser, Debug)]
