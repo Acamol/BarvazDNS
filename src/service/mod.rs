@@ -178,10 +178,8 @@ async fn handle_message(msg: &Request, context: &mut ServiceContext, update_tx: 
             Ok(Response::Ok)
         }
         Request::Ipv6(enable) => {
-            if context.config.service.ipv6.is_some_and(|v| v != *enable) {
-                context.config.service.ipv6 = Some(*enable);
-                context.config.service.clear_ip_addresses = true;
-            }
+            context.config.service.ipv6.replace(*enable);
+            context.config.service.clear_ip_addresses = true;
             Ok(Response::Ok)
         }
         Request::ForceUpdate => {
@@ -234,16 +232,17 @@ async fn service_listening_loop(mut context: ServiceContext, update_tx: mpsc::Se
                 } 
                 log::debug!("Client connected");
 
-                let mut buffer = vec![0; std::mem::size_of::<ServiceRequest>()];
+                let mut buffer = vec![0; 256]; // should be enough for any request
                 match pipe.read_with_timeout(&mut buffer, common::consts::PIPE_TIMEOUT).await {
                     Ok(0) => {
                         log::debug!("Client disconnected");
                     }
-                    Ok(_bytes_read) => {
+                    Ok(bytes_read) => {
                         let msg = match ServiceRequest::deserialize(&buffer) {
                             Ok(m) => m,
                             Err(e) => {
                                 log::error!("Failed to deserialize message, error: {e}");
+                                log::debug!("read {bytes_read} bytes, request size: {} bytes", std::mem::size_of::<ServiceRequest>());
                                 continue;
                             }
                         };
