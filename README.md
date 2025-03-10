@@ -11,7 +11,7 @@ BarvazDNS is a Windows application designed to automatically update your DuckDNS
 * **Human-Readable Interval:** Supports intervals in hours, minutes, and days and so on (e.g., `5h`, `30m`, `1d`).
 * **TOML Configuration:** Uses a TOML configuration file for easy setup and modification.
 * **User-Specific Configuration:** Configuration file located in `%ProgramData%\BarvazDNS\config.toml`.
-* **Logging:** Detailed logs are stored in `%ProgramData%\BarvazDNS\`.
+* **Logging:** Logs are stored in `%ProgramData%\BarvazDNS\`.
 * **IPv6 Support:** Option to enable or disable IPv6 updates.
 * **Open Source:** Feel free to modify, contribute, and distribute.
 
@@ -21,11 +21,15 @@ BarvazDNS is a Windows application designed to automatically update your DuckDNS
 
 * A DuckDNS account and domain(s).
 * Windows operating system (doh).
+* **Administrator privileges are required to install and manage the Windows service.**
+* **For building from source:**
+    * Windows SDK installed and added to your system's PATH environment variable.
 
 ### Installation
 
-1.  **Download:** Download the latest release from the [Releases](https://github.com/acamol/BarvasDNS/releases) page.
-2.  **Extract:** Extract the downloaded executable to a folder of your choice.
+**Option 1: Pre-built Executable**
+
+1.  **Download:** Download the latest release from the [Releases](https://github.com/Acamol/BarvazDNS/releases/) page.
 3.  **Configuration:**
     * The configuration file `config.toml` is automatically created in `%ProgramData%\BarvazDNS\` on the first run.
     * You can also manually create or modify the `config.toml` file.
@@ -35,24 +39,32 @@ BarvazDNS is a Windows application designed to automatically update your DuckDNS
     [service]
     token = "your-duckdns-token"
     domain = ["yoursubdomain", "anothersubdomain"]
-    interval = "5h" 
+    interval = "5h"
     ipv6 = false
 
     [client]
     # Currently not used
     ```
 
-4.  **Windows Service Installation (Recommended):**
-    * Open a command prompt or PowerShell as administrator.
+4.  **Windows Service Installation:**
+    * **Open a command prompt or PowerShell as administrator.**
     * Navigate to the directory containing `BarvazDNS`.
     * Run `BarvazDNS service install` to install the service.
     * Run `BarvazDNS service start` to start the service.
+    * Run `BarvazDNS service stop` to start the service.
     * Run `BarvazDNS service uninstall` to uninstall the service.
+
+**Option 2: Building from Source**
+
+1.  **Clone the Repository:** `git clone https://github.com/acamol/BarvazDNS.git`
+2.  **Navigate to the Directory:** `cd BarvazDNS`
+3.  **Build the Executable:** `cargo build --release`
+4.  **The executable will be located in `target/release/BarvazDNS.exe`**
+5.  **Follow the configuration and service installation steps from Option 1.**
 
 ### Command-Line Usage
 
-BarvazDNS provides a comprehensive command-line interface for managing the service and configuration.
-
+BarvazDNS provides a comprehensive command-line interface for managing the service and configuration. **Many of these commands require administrator privileges.**
 
 * `BarvazDNS`: Displays general help and available commands.
 * `BarvazDNS domain add "yourdomain"`: Adds a subdomain.
