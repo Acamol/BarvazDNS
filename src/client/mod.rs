@@ -112,7 +112,14 @@ pub async fn disable_ipv6() -> Result<()> {
 /// * `Err(e)` if an error occurred while sending the request.
 pub async fn force_update() -> Result<()> {
     let msg = Request::ForceUpdate;
-    msg.send().await.map(|_| ())
+    msg.send().await.and_then(|res| {
+        if let Response::Ok = res {
+            println!("Update succeeded.");
+            Ok(())
+        } else {
+            Err(anyhow!("Update failed."))
+        }
+    })
 }
 
 /// Updates the service's debug logging level.
