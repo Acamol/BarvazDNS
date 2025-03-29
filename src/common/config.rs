@@ -40,8 +40,9 @@ pub struct ClientConfig { }
 #[derive(Deserialize, Serialize, Clone)]
 pub struct Config {
 	pub service: ServiceConfig,
-	pub client: ClientConfig,
+	pub client: Option<ClientConfig>,
 }
+
 impl fmt::Display for Config {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "{}", toml::to_string_pretty(self).unwrap())

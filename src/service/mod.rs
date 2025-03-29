@@ -114,21 +114,22 @@ fn service_main(_args: Vec<OsString>) {
 
     set_service_status(&status_handle, ServiceState::StartPending, 0).unwrap();
 
-    // also creates the app directory if it does not exist yet
-    let config = match config::read() {
-        Ok(c) => c,
-        Err(_) => {
-            set_service_status(&status_handle, ServiceState::Stopped, 1).unwrap();
-            return;
-        }
-    };
-
 	let logger_handle = match logger_init() {
         Err(_) => {
             set_service_status(&status_handle, ServiceState::Stopped, 2).unwrap();
             return;
         }
         Ok(handle) => handle,
+    };
+
+    // also creates the app directory if it does not exist yet
+    let config = match config::read() {
+        Ok(c) => c,
+        Err(e) => {
+            log::error!("{e}");
+            set_service_status(&status_handle, ServiceState::Stopped, 1).unwrap();
+            return;
+        }
     };
 
     log::debug!("Service is running with the following configuration:\n{config}");
