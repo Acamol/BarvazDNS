@@ -29,6 +29,7 @@ pub enum Request {
 	DebugLevel(String),
 	GetConfig,
 	GetStatus,
+	Version,
 }
 
 impl Request {
@@ -42,7 +43,7 @@ impl Request {
 		let encode = serialize(&service_request)?;
 		client.write_all(&encode).await?;
 
-		let mut buf = vec![0; std::mem::size_of::<Response>()];
+		let mut buf = vec![0; std::cmp::max(256, std::mem::size_of::<Response>())];
 		client.read(&mut buf).await?;
 		deserialize(&buf).map_err(|e| anyhow!("{e}"))
 	}
@@ -63,6 +64,10 @@ impl ServiceRequest {
 	}
 
 	pub fn is_compatiable(&self) -> bool {
+		if let Request::Version = self.request {
+			// otherwise this request has no useful usage
+			return true;
+		}
 		self.version == strings::VERSION
 	}
 
@@ -93,6 +98,7 @@ pub enum Response {
 	Err(String),
 	Config(config::ServiceConfig),
 	Status(bool),
+	Version(String),
 }
 
 // TODO: implement with macro?

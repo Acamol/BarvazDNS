@@ -17,6 +17,7 @@ use windows_service::{
 
 use flexi_logger::{DeferredNow, Record};
 
+use crate::common::strings::VERSION;
 use crate::common::{self,
     config::Config,
     message::{ServiceRequest, Request, Response, Serialize, Deserialize},
@@ -200,6 +201,9 @@ async fn handle_message(msg: &Request, context: &mut ServiceContext, update_tx: 
             let status = context.last_update_succeeded.lock().await;
             return Ok(Response::Status(*status));
         }
+        Request::Version => {
+            return Ok(Response::Version(VERSION.to_string()));
+        }
     }?;
 
     context.config.store()?;
@@ -233,7 +237,7 @@ async fn service_listening_loop(mut context: ServiceContext, update_tx: mpsc::Se
                 } 
                 log::debug!("Client connected");
 
-                let mut buffer = vec![0; 256]; // should be enough for any request
+                let mut buffer = vec![0; std::cmp::max(256, std::mem::size_of::<Request>())]; // should be enough for any request
                 match pipe.read_with_timeout(&mut buffer, common::consts::PIPE_TIMEOUT).await {
                     Ok(0) => {
                         log::debug!("Client disconnected");

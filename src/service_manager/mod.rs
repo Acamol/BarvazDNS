@@ -6,14 +6,33 @@ use windows_service::{
 };
 use windows_sys::Win32::Foundation::ERROR_SERVICE_DOES_NOT_EXIST;
 
-use std::ffi::OsString;
+use std::{ffi::OsString, io::Write};
 use std::{
     thread::sleep,
     time::{Duration, Instant},
 };
 
-use crate::{arg_parser::InstallArgs, common::strings::{SERVICE_DESCRIPTION, SERVICE_DISPLAY_NAME, SERVICE_NAME}};
+use crate::{arg_parser::InstallArgs, common::{message::{Request, Response}, strings::{SERVICE_DESCRIPTION, SERVICE_DISPLAY_NAME, SERVICE_NAME, VERSION}}};
 
+enum Answer {
+    No,
+    Yes,
+}
+
+fn yes_no_question(question: &str) -> Result<Answer>
+{
+    print!("{question} [Yes/No] ");
+    std::io::stdout().flush()?;
+
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input)?;
+
+    match input.trim().to_lowercase().as_str() {
+        "yes" | "y" => Ok(Answer::Yes),
+        "no" | "n" => Ok(Answer::No),
+        _ => Err(anyhow!("Please enter Yes or No")),
+    }
+}
 
 fn service_is_running() -> Result<bool> {
     let manager_access = ServiceManagerAccess::CONNECT;
@@ -23,6 +42,14 @@ fn service_is_running() -> Result<bool> {
     let service = service_manager.open_service(SERVICE_NAME, service_access)?;
 
     Ok(matches!(service.query_status()?.current_state, ServiceState::Running | ServiceState::StartPending))
+}
+
+fn service_is_installed() -> Result<bool> {
+    let manager_access = ServiceManagerAccess::CONNECT;
+    let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
+
+    let service_access = ServiceAccess::QUERY_STATUS;
+    Ok(service_manager.open_service(SERVICE_NAME, service_access).is_ok())
 }
 
 /// Installs the Windows service.
@@ -37,6 +64,21 @@ fn service_is_running() -> Result<bool> {
 /// * `Ok(())` if the service was successfully installed.
 /// * `Err(e)` where `e` is an error type describing the failure, if the service installation failed.
 pub fn install_service(args: InstallArgs) -> Result<()> {
+    if service_is_installed()? {
+        println!("An existing installation of {SERVICE_DISPLAY_NAME} was detected.\nTo install version {VERSION}, the existing installation must be uninstalled.");
+
+        loop {
+            match yes_no_question("Proceed with uninstallation and installation?") {
+                Ok(Answer::Yes) => {
+                    uninstall_service()?;
+                    break;
+                },
+                Ok(Answer::No) => return Ok(println!("Installation aborted.")),
+                Err(e) => println!("{e}"),
+            }
+        }
+    }
+
     let manager_access = ServiceManagerAccess::CONNECT | ServiceManagerAccess::CREATE_SERVICE;
     let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
 
@@ -57,7 +99,7 @@ pub fn install_service(args: InstallArgs) -> Result<()> {
     let service = service_manager.create_service(&service_info, ServiceAccess::CHANGE_CONFIG)?;
     service.set_description(SERVICE_DESCRIPTION)?;
 
-    Ok(println!("{} is installed", SERVICE_DISPLAY_NAME))
+    Ok(println!("{} is installed.", SERVICE_DISPLAY_NAME))
 }
 
 /// Uninstalls the Windows service.
@@ -72,6 +114,10 @@ pub fn install_service(args: InstallArgs) -> Result<()> {
 /// * `Ok(())` on successful uninstallation or marking for deletion.
 /// * `Err(e)` if an error occurs during the process.
 pub fn uninstall_service() -> Result<()> {
+    if !service_is_installed()? {
+        return Err(anyhow!("{SERVICE_DISPLAY_NAME} is not installed"));
+    }
+
     let manager_access = ServiceManagerAccess::CONNECT;
     let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
 
@@ -97,8 +143,7 @@ pub fn uninstall_service() -> Result<()> {
             service_manager.open_service(SERVICE_NAME, ServiceAccess::QUERY_STATUS)
         {
             if e.raw_os_error() == Some(ERROR_SERVICE_DOES_NOT_EXIST as i32) {
-                println!("{SERVICE_DISPLAY_NAME} is uninstalled.");
-                return Ok(());
+                return Ok(println!("{SERVICE_DISPLAY_NAME} is uninstalled."));
             }
         }
         sleep(Duration::from_secs(1));
@@ -118,6 +163,19 @@ pub fn uninstall_service() -> Result<()> {
 /// * `Ok(())` if the service started successfully.
 /// * `Err(e)` if the service failed to start or was already running.
 pub fn start_service() -> Result<()> {
+    if !service_is_installed()? {
+        loop {
+            match yes_no_question(&format!("{SERVICE_DISPLAY_NAME} is not currently installed. Would you like to install it now?")) {
+                Ok(Answer::Yes) => {
+                    install_service(InstallArgs { no_startup: false })?;
+                    break;
+                },
+                Ok(Answer::No) => return Ok(println!("Start command aborted.")),
+                Err(e) => println!("{e}."),
+            }
+        }
+    }
+
     if service_is_running()? {
         return Err(anyhow!("{SERVICE_DISPLAY_NAME} is already running"));
     }
@@ -138,7 +196,7 @@ pub fn start_service() -> Result<()> {
     })?;
 
     return if service_is_running()? {
-        Ok(println!("{SERVICE_DISPLAY_NAME} is running"))
+        Ok(println!("{SERVICE_DISPLAY_NAME} is running."))
     } else {
         Err(anyhow!("Failed to start {SERVICE_DISPLAY_NAME}"))
     }
@@ -156,6 +214,10 @@ pub fn start_service() -> Result<()> {
 /// * `Ok(())` if the service stopped successfully.
 /// * `Err(e)` if the service failed to stop or was not running.
 pub fn stop_service() -> Result<()> {
+    if !service_is_installed()? {
+        return Err(anyhow!("{SERVICE_DISPLAY_NAME} is not installed"));
+    }
+
     if !service_is_running()? {
         return Err(anyhow!("{SERVICE_DISPLAY_NAME} is not running"));
     }
@@ -188,5 +250,21 @@ pub fn stop_service() -> Result<()> {
         Ok(state) => Err(anyhow!("{SERVICE_DISPLAY_NAME} is in an invalid state {:?}", state.current_state)),
         Err(windows_service::Error::Winapi(e)) => Err(anyhow!("code {}", e.raw_os_error().unwrap_or_default())),
         Err(_) => Ok(()),
+    }
+}
+
+pub async fn version() -> Result<()> {
+    if !service_is_installed()? {
+        return Err(anyhow!("{SERVICE_DISPLAY_NAME} is not installed"));
+    }
+
+    if !service_is_running()? {
+        return Err(anyhow!("{SERVICE_DISPLAY_NAME} is not running"));
+    }
+
+    let req = Request::Version;
+    match req.send().await? {
+        Response::Version(ver) => return Ok(println!("Version {ver}")),
+        _ => return Err(anyhow!("Failed to receive response from the service")),
     }
 }

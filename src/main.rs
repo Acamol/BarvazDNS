@@ -87,9 +87,9 @@ fn is_admin() -> bool {
     }
 }
 
-fn handle_service_result(result: Result<()>, command: &str) {
+fn handle_service_result(result: Result<()>) {
     if let Err(e) = result {
-        eprintln!("Failed to execute {command}: {e}");
+        eprintln!("Failed to execute: {e}.");
         exit(1);
     }
 }
@@ -116,13 +116,11 @@ async fn main() -> Result<()> {
     let args = Cli::parse();
 
     match args.command {
-        Command::Service(service_args) => 
-            match service_args.command {
-                ServiceSubcommands::Install(args) => handle_service_result(service_manager::install_service(args), "install"),
-                ServiceSubcommands::Uninstall => handle_service_result(service_manager::uninstall_service(), "uninstall"),
-                ServiceSubcommands::Start => handle_service_result(service_manager::start_service(), "start"),
-                ServiceSubcommands::Stop => handle_service_result(service_manager::stop_service(), "stop"),
-            }
+        Command::Service(ServiceCommands { command: ServiceSubcommands::Install(args) }) => handle_service_result(service_manager::install_service(args)),
+        Command::Service(ServiceCommands { command: ServiceSubcommands::Uninstall }) => handle_service_result(service_manager::uninstall_service()),
+        Command::Service(ServiceCommands { command: ServiceSubcommands::Start }) => handle_service_result(service_manager::start_service()),
+        Command::Service(ServiceCommands { command: ServiceSubcommands::Stop }) => handle_service_result(service_manager::stop_service()),
+        Command::Service(ServiceCommands { command: ServiceSubcommands::Version }) => handle_service_result(service_manager::version().await),
         Command::Interval { interval } => client::set_interval(interval).await?,
         Command::Token { token } => client::set_token(token).await?,
         Command::Domain(DomainSubCommands::Add { domain }) => client::add_domain(domain).await?,

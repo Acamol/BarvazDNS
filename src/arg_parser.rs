@@ -21,6 +21,8 @@ pub enum ServiceSubcommands {
     Start,
     /// Stops the service.
     Stop,
+    /// Retrieves the service version.
+    Version,
 }
 
 #[derive(Args, Debug)]
