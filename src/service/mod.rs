@@ -3,7 +3,7 @@ use flexi_logger::{Cleanup, FileSpec, LogSpecification, Logger, LoggerHandle, Wr
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex;
 use std::ffi::OsString;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 use std::sync::{mpsc, Arc};
 use std::io::Write;
 use tokio::runtime::Runtime;
@@ -93,7 +93,7 @@ struct ServiceContext {
     logger_handle: LoggerHandle,
     status_handle: ServiceStatusHandle,
     config: Config,
-    last_update_succeeded: Arc<Mutex<bool>>,
+    last_update_succeeded: Arc<Mutex<Option<SystemTime>>>,
 }
 
 fn service_main(_args: Vec<OsString>) {
@@ -139,7 +139,7 @@ fn service_main(_args: Vec<OsString>) {
         status_handle,
         logger_handle,
         config,
-        last_update_succeeded: Arc::new(Mutex::new(false)),
+        last_update_succeeded: Arc::new(Mutex::new(None)),
     };
 
     if let Err(e) = run_service(context, shutdown_rx) {
@@ -280,7 +280,7 @@ async fn service_listening_loop(mut context: ServiceContext, update_tx: mpsc::Se
     }
 }
 
-async fn update_ip_loop(receiver: mpsc::Receiver<Config>, initial_config: Config, last_update_succeeded: Arc<Mutex<bool>>) {
+async fn update_ip_loop(receiver: mpsc::Receiver<Config>, initial_config: Config, last_update_succeeded: Arc<Mutex<Option<SystemTime>>>) {
     let mut config = initial_config;
     let mut last_run = Instant::now();
     let mut already_warned_token = false;
@@ -312,12 +312,13 @@ async fn update_ip_loop(receiver: mpsc::Receiver<Config>, initial_config: Config
         already_warned_domain = false;
 
         if last_run.elapsed() >= config.service.interval || force_update {
-            let mut succeeded = last_update_succeeded.lock().await;
-            *succeeded = duckdns::update(&config)
-                .await
-                .is_ok();
-            log::info!("Update {}",
-            if *succeeded { "succeeded" } else { "failed" });
+            if let Ok(()) = duckdns::update(&config).await {
+                *last_update_succeeded.lock().await = Some(SystemTime::now());
+                log::info!("Update succeeded");
+            } else {
+                log::info!("Update failed");
+            }
+
             last_run = Instant::now();
             config.service.clear_ip_addresses = false;
         }

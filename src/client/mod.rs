@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use anyhow::{Result, anyhow};
+use chrono::{DateTime, Local};
 
 use crate::common::message::{Request, Response};
 
@@ -171,9 +172,13 @@ pub async fn print_configuration() -> Result<()> {
 pub async fn get_last_status() -> Result<()> {
     let msg = Request::GetStatus;
     match msg.send().await? {
-        Response::Status(status) =>
-            println!("Last update {}.",
-                if status { "succeeded" } else { "failed" }),
+        Response::Status(Some(last_update_time)) => {
+            // let since_epoch = last_update_time.duration_since(SystemTime::UNIX_EPOCH)?;
+            let datetime: DateTime<Local> = last_update_time.into();
+            let formatted_time = datetime.format("%Y-%m-%d %H:%M:%S");
+            println!("Last update: {formatted_time}");
+        },
+        Response::Status(None) => println!("No updates have been performed yet."),
         Response::Err(e) => return Err(anyhow!("Bad response: {e}")),
         _ => return Err(anyhow!("Failed to send request")),
     }

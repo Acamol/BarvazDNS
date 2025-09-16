@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use anyhow::{Result, anyhow};
 use bincode::{deserialize, serialize};
@@ -97,7 +97,7 @@ pub enum Response {
 	Ok,
 	Err(String),
 	Config(config::ServiceConfig),
-	Status(bool),
+	Status(Option<SystemTime>),
 	Version(String),
 }
 
