@@ -14,6 +14,7 @@ use windows_service::{
     service_control_handler::{self, ServiceControlHandlerResult, ServiceStatusHandle},
 	service_dispatcher,
 };
+use windows_sys::Win32::System::SystemInformation::GetTickCount64;
 
 use flexi_logger::{DeferredNow, Record};
 
@@ -221,11 +222,23 @@ async fn send_response(pipe: &mut NamedPipeServer, response: Response) -> Result
         .map_err(|e| anyhow!("{e}"))
 }
 
-async fn service_listening_loop(mut context: ServiceContext, update_tx: mpsc::Sender<Config>) {
-    // force an update when the service has just started
-    if let Err(_) = update_tx.send(context.config.clone()) {
+fn force_update_on_service_start(update_tx: &mpsc::Sender<Config>, config: &Config, max_delay: Duration) {
+    let ms_since_boot = unsafe { GetTickCount64() } as u64;
+    let uptime = Duration::from_millis(ms_since_boot);
+
+    if uptime < max_delay {
+        let to_sleep = max_delay - uptime;
+        log::info!("System just booted (uptime {}, delaying update by {})", uptime.as_secs(), to_sleep.as_secs());
+        std::thread::sleep(to_sleep);
+    }
+
+    if let Err(_) = update_tx.send(config.clone()) {
         log::error!("Failed to request an update");
     }
+}
+
+async fn service_listening_loop(mut context: ServiceContext, update_tx: mpsc::Sender<Config>) {
+    force_update_on_service_start(&&update_tx, &context.config, common::consts::MAX_STARTUP_BOOT_DELAY);
 
     loop {
         match ServerOptions::new().create(common::strings::PIPE_NAME) {
