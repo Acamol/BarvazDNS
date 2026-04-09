@@ -6,6 +6,14 @@ use chrono::{DateTime, Local};
 use crate::common::message::{Request, Response, Token};
 
 
+fn expect_ok(response: Response) -> Result<()> {
+    match response {
+        Response::Ok => Ok(()),
+        Response::Err(e) => Err(anyhow!("{e}")),
+        other => Err(anyhow!("Unexpected response: {other:?}")),
+    }
+}
+
 /// Sets the update interval of the service to DuckDNS.
 ///
 /// Sends a request to the service to set its update interval to the specified `duration`.
@@ -20,7 +28,7 @@ use crate::common::message::{Request, Response, Token};
 /// * `Err(e)` if an error occurred while sending the request.
 pub async fn set_interval(duration: Duration) -> Result<()> {
     let msg = Request::Interval(duration);
-    msg.send().await.map(|_| ())
+    msg.send().await.and_then(expect_ok)
 }
 
 /// Sets the DuckDNS token on the service.
@@ -37,7 +45,7 @@ pub async fn set_interval(duration: Duration) -> Result<()> {
 /// * `Err(e)` if an error occurred while sending the request.
 pub async fn set_token(token: String) -> Result<()> {
     let msg = Request::Token(Token::new(token));
-    msg.send().await.map(|_| ())
+    msg.send().await.and_then(expect_ok)
 }
 
 /// Adds a domain to the DuckDNS update list on the service.
@@ -55,7 +63,7 @@ pub async fn set_token(token: String) -> Result<()> {
 /// * `Err(e)` if an error occurred while sending the request.
 pub async fn add_domain(domain: String) -> Result<()> {
     let msg = Request::AddDomain(domain);
-    msg.send().await.map(|_| ())
+    msg.send().await.and_then(expect_ok)
 }
 
 /// Removes a domain from the DuckDNS update list on the service.
@@ -73,7 +81,7 @@ pub async fn add_domain(domain: String) -> Result<()> {
 /// * `Err(e)` if an error occurred while sending the request.
 pub async fn remove_domain(domain: String) -> Result<()> {
     let msg = Request::RemoveDomain(domain);
-    msg.send().await.map(|_| ())
+    msg.send().await.and_then(expect_ok)
 }
 
 /// Enables IPv6 updates on the service.
@@ -86,7 +94,7 @@ pub async fn remove_domain(domain: String) -> Result<()> {
 /// * `Err(e)` if an error occurred while sending the request.
 pub async fn enable_ipv6() -> Result<()> {
     let msg = Request::Ipv6(true);
-    msg.send().await.map(|_| ())
+    msg.send().await.and_then(expect_ok)
 }
 
 /// Disables IPv6 updates on the service.
@@ -99,7 +107,7 @@ pub async fn enable_ipv6() -> Result<()> {
 /// * `Err(e)` if an error occurred while sending the request.
 pub async fn disable_ipv6() -> Result<()> {
     let msg = Request::Ipv6(false);
-    msg.send().await.map(|_| ())
+    msg.send().await.and_then(expect_ok)
 }
 
 /// Forces an immediate DuckDNS update on the service.
@@ -114,12 +122,9 @@ pub async fn disable_ipv6() -> Result<()> {
 pub async fn force_update() -> Result<()> {
     let msg = Request::ForceUpdate;
     msg.send().await.and_then(|res| {
-        if let Response::Ok = res {
-            println!("Update succeeded.");
-            Ok(())
-        } else {
-            Err(anyhow!("Update failed."))
-        }
+        expect_ok(res)?;
+        println!("Update succeeded.");
+        Ok(())
     })
 }
 
@@ -137,7 +142,7 @@ pub async fn force_update() -> Result<()> {
 /// * `Err(e)` if an error occurred while sending the request.
 pub async fn update_debug_level(level: String) -> Result<()> {
     let msg = Request::DebugLevel(level);
-    msg.send().await.map(|_| ())
+    msg.send().await.and_then(expect_ok)
 }
 
 /// Prints the service's current configuration to the console.
