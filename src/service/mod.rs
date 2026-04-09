@@ -7,7 +7,7 @@ use std::time::{Duration, Instant, SystemTime};
 use std::sync::{mpsc, Arc};
 use std::io::Write;
 use tokio::runtime::Runtime;
-use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
+use tokio::net::windows::named_pipe::NamedPipeServer;
 use windows_service::service::{ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus, ServiceType};
 use windows_service::{
     define_windows_service,
@@ -27,6 +27,7 @@ use crate::common::{self,
 mod duckdns;
 mod config;
 mod named_pipe_extension;
+mod pipe_security;
 use named_pipe_extension::NamedPipeServerWithTimeout;
 
 
@@ -271,7 +272,7 @@ async fn service_listening_loop(mut context: ServiceContext, update_tx: mpsc::Se
     force_update_on_service_start(&update_tx, &context.config, common::consts::MAX_STARTUP_BOOT_DELAY).await;
 
     loop {
-        match ServerOptions::new().create(common::strings::PIPE_NAME) {
+        match pipe_security::create_admin_pipe(common::strings::PIPE_NAME) {
             Ok(mut pipe) => {
                 log::debug!("Waiting for a client...");
                 if let Err(e) = pipe.connect_with_timeout(common::consts::PIPE_TIMEOUT).await {
