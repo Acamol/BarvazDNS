@@ -10,7 +10,7 @@ BarvazDNS is a Windows application designed to automatically update your DuckDNS
 * **Windows Service:** Runs in the background for continuous, automated updates.
 * **Human-Readable Interval:** Supports intervals in hours, minutes, and days and so on (e.g., `5h`, `30m`, `1d`).
 * **TOML Configuration:** Uses a TOML configuration file for easy setup and modification.
-* **User-Specific Configuration:** Configuration file located in `%ProgramData%\BarvazDNS\config.toml`.
+* **Configuration:** Configuration file located in `%ProgramData%\BarvazDNS\config.toml`.
 * **Logging:** Logs are stored in `%ProgramData%\BarvazDNS\`.
 * **IPv6 Support:** Option to enable or disable IPv6 updates.
 * **Open Source:** Feel free to modify, contribute, and distribute.
@@ -30,7 +30,7 @@ BarvazDNS is a Windows application designed to automatically update your DuckDNS
 **Option 1: Pre-built Executable**
 
 1.  **Download:** Download the latest release from the [Releases](https://github.com/Acamol/BarvazDNS/releases/) page.
-3.  **Configuration:**
+2.  **Configuration:**
     * The configuration file `config.toml` is automatically created in `%ProgramData%\BarvazDNS\` on the first run.
     * You can also manually create or modify the `config.toml` file.
     * Example `config.toml`:
@@ -51,7 +51,7 @@ BarvazDNS is a Windows application designed to automatically update your DuckDNS
     * Navigate to the directory containing `BarvazDNS`.
     * Run `BarvazDNS service install` to install the service.
     * Run `BarvazDNS service start` to start the service.
-    * Run `BarvazDNS service stop` to start the service.
+    * Run `BarvazDNS service stop` to stop the service.
     * Run `BarvazDNS service uninstall` to uninstall the service.
 
 **Option 2: Building from Source**
@@ -82,6 +82,7 @@ BarvazDNS provides a comprehensive command-line interface for managing the servi
     * `BarvazDNS service uninstall`: Uninstalls the service.
     * `BarvazDNS service start`: Starts the service.
     * `BarvazDNS service stop`: Stops the service.
+    * `BarvazDNS service version`: Displays the running service version.
 
 ### Logging
 

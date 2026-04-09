@@ -22,13 +22,13 @@ pub const LOGO: &str = "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀�
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠉⠛⠛⠻⠿⠿⠿⢿⣿⣿⡿⠿⠿⠿⠿⠛⠛⠋⠉⠁";
 
 // service
-pub const PIPE_NAME: &str = r"\\.\pipe\barvas-dns-service";
-pub const SERVICE_NAME: &str = "BarvasDNSSvc";
-pub const SERVICE_DISPLAY_NAME: &str = "BarvasDNS";
+pub const PIPE_NAME: &str = r"\\.\pipe\barvaz-dns-service";
+pub const SERVICE_NAME: &str = "BarvazDNSSvc";
+pub const SERVICE_DISPLAY_NAME: &str = "BarvazDNS";
 pub const SERVICE_DESCRIPTION: &str = "Automatically updates your DuckDNS record to ensure your hostname always points to your current public IP.";
 
 // config
-pub const CONFIG_DIR: &str = "BarvasDNS";
+pub const CONFIG_DIR: &str = "BarvazDNS";
 pub const CONFIG_FILE_NAME: &str = "config.toml";
 pub const DEFAULT_CONFIG_CONTENT: &str = r#"
 [service]

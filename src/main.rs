@@ -17,7 +17,7 @@
 //!
 //! # Getting Started
 //!
-//! 1.  Download the latest release from the [Releases](https://github.com/acamol/BarvasDNS/releases) page.
+//! 1.  Download the latest release from the [Releases](https://github.com/acamol/BarvazDNS/releases) page.
 //! 2.  Extract the downloaded executable.
 //! 3.  Configure `config.toml` in `%ProgramData%\BarvazDNS\`.
 //! 4.  Install and start the Windows service (recommended):

@@ -294,7 +294,7 @@ async fn service_listening_loop(mut context: ServiceContext, update_tx: mpsc::Se
                                 continue;
                             }
                         };
-                        if !msg.is_compatiable() {
+                        if !msg.is_compatible() {
                             log::error!("Client version incompatible. Client version: {}, Service version: {}", msg.version(), common::strings::VERSION);
                             let res = Response::Err("Client version incompatible".to_string());
                             if let Err(e) = send_response(&mut pipe, res).await {

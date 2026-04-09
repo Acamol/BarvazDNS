@@ -65,7 +65,7 @@ impl ServiceRequest {
 		}
 	}
 
-	pub fn is_compatiable(&self) -> bool {
+	pub fn is_compatible(&self) -> bool {
 		if let Request::Version = self.request {
 			// otherwise this request has no useful usage
 			return true;
