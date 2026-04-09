@@ -97,6 +97,15 @@ struct ServiceContext {
     last_update_succeeded: Arc<Mutex<Option<SystemTime>>>,
 }
 
+fn log_config_warnings(config: &Config) {
+    if config.service.token.is_none() {
+        log::warn!("No token is configured");
+    }
+    if config.service.domain.is_empty() {
+        log::warn!("No domain is configured");
+    }
+}
+
 fn service_main(_args: Vec<OsString>) {
     let (shutdown_tx, shutdown_rx) = mpsc::channel();
 
@@ -135,6 +144,7 @@ fn service_main(_args: Vec<OsString>) {
     };
 
     log::debug!("Service is running with the following configuration:\n{config}");
+    log_config_warnings(&config);
 
     let context = ServiceContext {
         status_handle,
@@ -199,7 +209,14 @@ async fn handle_message(msg: &Request, context: &mut ServiceContext, update_tx: 
         }
         Request::ForceUpdate => {
             context.config = config::read()?;
-            Ok(Response::Ok)
+            match duckdns::update(&context.config).await {
+                Ok(()) => {
+                    *context.last_update_succeeded.lock().await = Some(SystemTime::now());
+                    log::info!("Force update succeeded");
+                    return Ok(Response::Ok)
+                }
+                Err(e) => Err(anyhow!("Update failed: {e}")),
+            }
         }
         Request::DebugLevel(level) => {
             let new_spec = LogSpecification::parse(level)?;
@@ -220,6 +237,7 @@ async fn handle_message(msg: &Request, context: &mut ServiceContext, update_tx: 
     }?;
 
     context.config.store()?;
+    log_config_warnings(&context.config);
     update_tx.send(context.config.clone())?;
 
     log::debug!("New config:\n{}", context.config);
@@ -234,14 +252,14 @@ async fn send_response(pipe: &mut NamedPipeServer, response: Response) -> Result
         .map_err(|e| anyhow!("{e}"))
 }
 
-fn force_update_on_service_start(update_tx: &mpsc::Sender<Config>, config: &Config, max_delay: Duration) {
+async fn force_update_on_service_start(update_tx: &mpsc::Sender<Config>, config: &Config, max_delay: Duration) {
     let ms_since_boot = unsafe { GetTickCount64() } as u64;
     let uptime = Duration::from_millis(ms_since_boot);
 
     if uptime < max_delay {
         let to_sleep = max_delay - uptime;
         log::info!("System just booted (uptime {}, delaying update by {})", uptime.as_secs(), to_sleep.as_secs());
-        std::thread::sleep(to_sleep);
+        tokio::time::sleep(to_sleep).await;
     }
 
     if let Err(_) = update_tx.send(config.clone()) {
@@ -250,7 +268,7 @@ fn force_update_on_service_start(update_tx: &mpsc::Sender<Config>, config: &Conf
 }
 
 async fn service_listening_loop(mut context: ServiceContext, update_tx: mpsc::Sender<Config>) {
-    force_update_on_service_start(&&update_tx, &context.config, common::consts::MAX_STARTUP_BOOT_DELAY);
+    force_update_on_service_start(&update_tx, &context.config, common::consts::MAX_STARTUP_BOOT_DELAY).await;
 
     loop {
         match ServerOptions::new().create(common::strings::PIPE_NAME) {
@@ -262,7 +280,7 @@ async fn service_listening_loop(mut context: ServiceContext, update_tx: mpsc::Se
                 } 
                 log::debug!("Client connected");
 
-                let mut buffer = vec![0; std::cmp::max(256, std::mem::size_of::<Request>())]; // should be enough for any request
+                let mut buffer = vec![0; common::consts::PIPE_BUFFER_SIZE];
                 match pipe.read_with_timeout(&mut buffer, common::consts::PIPE_TIMEOUT).await {
                     Ok(0) => {
                         log::debug!("Client disconnected");
@@ -308,35 +326,17 @@ async fn service_listening_loop(mut context: ServiceContext, update_tx: mpsc::Se
 async fn update_ip_loop(receiver: mpsc::Receiver<Config>, initial_config: Config, last_update_succeeded: Arc<Mutex<Option<SystemTime>>>) {
     let mut config = initial_config;
     let mut last_run = Instant::now();
-    let mut already_warned_token = false;
-    let mut already_warned_domain = false;
 
     loop {
-        let mut force_update = false;
+        let mut config_changed = false;
         if let Ok(c) = receiver.try_recv() {
             config = c;
-            force_update = true;
+            config_changed = true;
         }
 
-        if config.service.token.is_none() {
-            if !already_warned_token {
-                already_warned_token = true;
-                log::warn!("No token is configured");
-            }
-            continue;
-        }
-        already_warned_token = false;
+        let ready = config.service.token.is_some() && !config.service.domain.is_empty();
 
-        if config.service.domain.is_empty() {
-            if !already_warned_domain {
-                already_warned_domain = true;
-                log::warn!("No domain is conifgured");
-            }
-            continue;
-        }
-        already_warned_domain = false;
-
-        if last_run.elapsed() >= config.service.interval || force_update {
+        if ready && (last_run.elapsed() >= config.service.interval || config_changed) {
             if let Ok(()) = duckdns::update(&config).await {
                 *last_update_succeeded.lock().await = Some(SystemTime::now());
                 log::info!("Update succeeded");

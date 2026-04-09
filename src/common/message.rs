@@ -45,7 +45,7 @@ impl Request {
 		let encode = serialize(&service_request)?;
 		client.write_all(&encode).await?;
 
-		let mut buf = vec![0; std::cmp::max(256, std::mem::size_of::<Response>())];
+		let mut buf = vec![0; super::consts::PIPE_BUFFER_SIZE];
 		client.read(&mut buf).await?;
 		deserialize(&buf).map_err(|e| anyhow!("{e}"))
 	}
