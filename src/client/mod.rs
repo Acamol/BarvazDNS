@@ -4,6 +4,7 @@ use anyhow::{Result, anyhow};
 use chrono::{DateTime, Local};
 
 use crate::common::message::{Request, Response, Token};
+use crate::common;
 
 
 fn expect_ok(response: Response) -> Result<()> {
@@ -189,4 +190,49 @@ pub async fn get_last_status() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Checks if a newer version of BarvazDNS is available on GitHub.
+///
+/// Queries the GitHub releases API for the latest version and prints a message
+/// indicating whether an update is available or the current version is up to date.
+/// Also queries the running service version and warns if it differs from the CLI.
+pub async fn check_update() {
+    let cli_version = env!("CARGO_PKG_VERSION");
+
+    match common::version_check::check_for_update() {
+        Some(latest) => print_update_notice(&latest),
+        None => println!("You are running the latest version ({cli_version})."),
+    }
+
+    check_service_version_mismatch().await;
+}
+
+/// Queries the running service version and warns if it differs from the CLI version.
+pub async fn check_service_version_mismatch() {
+    let cli_version = env!("CARGO_PKG_VERSION");
+
+    let service_version = Request::Version.send().await.ok().and_then(|r| match r {
+        Response::Version(v) => Some(v),
+        _ => None,
+    });
+
+    if let Some(sv) = service_version {
+        if sv != cli_version {
+            eprintln!(
+                "Warning: version mismatch — CLI is v{cli_version} \
+                 but the running service is v{sv}. \
+                 Reinstall the service to ensure both use the same version."
+            );
+        }
+    }
+}
+
+/// Prints an update notice for the given version.
+fn print_update_notice(latest: &str) {
+    eprintln!(
+        "\nA new version of BarvazDNS is available: {latest} (current: {}).\n\
+         Download it from: https://github.com/acamol/BarvazDNS/releases/latest",
+        env!("CARGO_PKG_VERSION")
+    );
 }

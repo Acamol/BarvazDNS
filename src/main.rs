@@ -131,6 +131,7 @@ async fn main() -> Result<()> {
         Command::Debug { level } => client::update_debug_level(level.to_string()).await?,
         Command::Config => client::print_configuration().await?,
         Command::Status => client::get_last_status().await?,
+        Command::CheckUpdate => client::check_update().await,
     }
 
     Ok(())

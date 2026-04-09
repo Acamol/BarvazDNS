@@ -19,6 +19,7 @@ humantime-serde = "1.1"
 toml = { version = "0.8", features = ["display"] }
 minreq = { version = "2.13", features = ["https"]}
 public-ip = "0.2"
+semver = "1.0.28"
 
 [profile.release]
 lto = "fat"

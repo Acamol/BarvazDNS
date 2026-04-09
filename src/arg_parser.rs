@@ -99,6 +99,8 @@ pub enum Command {
     Config,
     /// Displays the last update attempt status.
     Status,
+    /// Checks if a newer version is available on GitHub.
+    CheckUpdate,
     #[clap(hide = true)]
     Debug {
         #[arg(value_enum)]
