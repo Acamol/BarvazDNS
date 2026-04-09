@@ -3,7 +3,7 @@ use std::time::Duration;
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Local};
 
-use crate::common::message::{Request, Response};
+use crate::common::message::{Request, Response, Token};
 
 
 /// Sets the update interval of the service to DuckDNS.
@@ -36,7 +36,7 @@ pub async fn set_interval(duration: Duration) -> Result<()> {
 /// * `Ok(())` if the request was successfully sent.
 /// * `Err(e)` if an error occurred while sending the request.
 pub async fn set_token(token: String) -> Result<()> {
-    let msg = Request::Token(token);
+    let msg = Request::Token(Token::new(token));
     msg.send().await.map(|_| ())
 }
 

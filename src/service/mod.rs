@@ -148,6 +148,16 @@ fn service_main(_args: Vec<OsString>) {
     }
 }
 
+// Validates that a domain name only contains characters safe for use in a DuckDNS subdomain.
+// Prevents URL parameter injection via crafted domain strings.
+fn is_valid_domain(domain: &str) -> bool {
+    !domain.is_empty()
+        && domain.len() <= 63
+        && domain.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+        && !domain.starts_with('-')
+        && !domain.ends_with('-')
+}
+
 async fn handle_message(msg: &Request, context: &mut ServiceContext, update_tx: &mpsc::Sender<Config>) -> Result<Response> {
     log::info!("Received: {:?}", msg);
 
@@ -161,8 +171,10 @@ async fn handle_message(msg: &Request, context: &mut ServiceContext, update_tx: 
             }
         }
         Request::AddDomain(domain) => {
-            if context.config.service.domain.len() >= common::consts::DOMAIN_LENGTH_LIMIT {
-                Err(anyhow!("The number of domain to update is limited to {}", common::consts::DOMAIN_LENGTH_LIMIT))
+            if !is_valid_domain(domain) {
+                Err(anyhow!("Invalid domain name: {domain}"))
+            } else if context.config.service.domain.len() >= common::consts::MAX_DOMAIN_COUNT {
+                Err(anyhow!("The number of domains to update is limited to {}", common::consts::MAX_DOMAIN_COUNT))
             } else if context.config.service.domain.insert(domain.clone()) {
                 Ok(Response::Ok)
             } else {
@@ -273,7 +285,7 @@ async fn service_listening_loop(mut context: ServiceContext, update_tx: mpsc::Se
                             continue;
                         }
                         match handle_message(msg.request(), &mut context, &update_tx).await {
-                            Err(e) => log::error!("Failed to handle {msg:?}, error: {e}"),
+                            Err(e) => log::error!("Failed to handle request, error: {e}"),
                             Ok(res) => {
                                 if let Err(e) = send_response(&mut pipe, res).await {
                                     log::error!("Failed to send response: {e}");

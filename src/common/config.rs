@@ -10,9 +10,34 @@ use anyhow::{Result, anyhow};
 use crate::common;
 
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Token(String);
+
+impl Token {
+	pub fn new(value: String) -> Self {
+		Self(value)
+	}
+
+	pub fn as_str(&self) -> &str {
+		&self.0
+	}
+}
+
+impl fmt::Debug for Token {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "***")
+	}
+}
+
+impl fmt::Display for Token {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "***")
+	}
+}
+
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct ServiceConfig {
-	pub token: Option<String>,
+	pub token: Option<Token>,
 	#[serde(default)]
 	pub domain: HashSet<String>,
 	#[serde(with = "humantime_serde")]
@@ -26,7 +51,7 @@ impl fmt::Display for ServiceConfig {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f,
 			"token: {}\ndomains: {}\ninterval: {}\nipv6: {}",
-			self.token.as_ref().unwrap_or(&"".to_string()),
+			self.token.as_ref().map(|t| t.as_str()).unwrap_or(""),
 			self.domain.iter().cloned().collect::<Vec<String>>().join(","),
 			humantime::format_duration(self.interval),
 			if self.ipv6.is_some_and(|v| v == true) { "enabled" } else { "disabled" }

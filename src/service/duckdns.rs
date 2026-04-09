@@ -11,7 +11,7 @@ async fn generate_request(config: &Config) -> Result<String> {
 	
 	let mut url = format!("https://www.duckdns.org/update?domains={}&token={}&ip={}",
 		config.service.domain.iter().cloned().collect::<Vec<String>>().join(","),
-		config.service.token.as_ref().unwrap(),
+		config.service.token.as_ref().unwrap().as_str(),
 		ip
 	);
 
@@ -29,7 +29,7 @@ async fn generate_request(config: &Config) -> Result<String> {
 fn clear_ip_addresses(config: &Config) -> Result<minreq::Response, minreq::Error> {
 	let url = format!("https://www.duckdns.org/update?domains={}&token={}&clear=true",
 		config.service.domain.iter().cloned().collect::<Vec<String>>().join(","),
-		config.service.token.as_ref().unwrap()
+		config.service.token.as_ref().unwrap().as_str()
 	);
 
 	minreq::get(url) .send()
@@ -80,7 +80,7 @@ pub async fn update(config: &Config) -> Result<()> {
 		}
 	}
 
-	log::debug!("Request url: {url}");
+	log::debug!("Sending update request for domains: {}", config.service.domain.iter().cloned().collect::<Vec<String>>().join(","));
 	match minreq::get(url).send() {
 		Ok(res) => {
 			let body = res.as_str()?;

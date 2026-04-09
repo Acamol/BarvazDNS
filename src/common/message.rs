@@ -8,6 +8,8 @@ use tokio::io::AsyncWriteExt;
 
 use super::{config, strings};
 
+pub use config::Token;
+
 
 pub trait Serialize {
 	fn serialize(&self) -> Result<Vec<u8>>;
@@ -21,7 +23,7 @@ pub trait Deserialize {
 #[derive(_Serialize, _Deserialize, Debug)]
 pub enum Request {
 	Interval(Duration),
-	Token(String),
+	Token(Token),
 	AddDomain(String),
 	RemoveDomain(String),
 	Ipv6(bool),
