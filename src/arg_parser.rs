@@ -73,17 +73,6 @@ impl fmt::Display for DebugLevelOption {
  }
 }
 
-#[derive(Parser, Debug)]
-pub enum ClientSubcommands {
-
-}
-
-#[derive(Parser, Debug)]
-pub struct ClientCommands {
-    #[command(subcommand)]
-    pub command: ClientSubcommands,
-}
-
 #[derive(Subcommand, Debug)]
 pub enum Command {
     /// Service related commands

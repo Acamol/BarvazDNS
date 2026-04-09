@@ -47,14 +47,20 @@ pub struct ServiceConfig {
 	pub clear_ip_addresses: bool,
 }
 
+impl ServiceConfig {
+	pub fn domains_csv(&self) -> String {
+		self.domain.iter().cloned().collect::<Vec<String>>().join(",")
+	}
+}
+
 impl fmt::Display for ServiceConfig {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f,
 			"token: {}\ndomains: {}\ninterval: {}\nipv6: {}",
 			self.token.as_ref().map(|t| t.as_str()).unwrap_or(""),
-			self.domain.iter().cloned().collect::<Vec<String>>().join(","),
+			self.domains_csv(),
 			humantime::format_duration(self.interval),
-			if self.ipv6.is_some_and(|v| v == true) { "enabled" } else { "disabled" }
+			if self.ipv6 == Some(true) { "enabled" } else { "disabled" }
 		)
 	}
 }

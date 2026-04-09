@@ -17,6 +17,8 @@ impl NamedPipeServerWithTimeout for NamedPipeServer {
     }
 
     async fn connect_with_timeout(&self, duration: Duration) -> io::Result<()> {
-        timeout(duration, self.connect()).await?
+        timeout(duration, self.connect())
+            .await
+            .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "Connect operation timed out"))?
     }
 }

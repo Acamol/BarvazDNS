@@ -10,12 +10,12 @@ async fn generate_request(config: &Config) -> Result<String> {
 			.ok_or(anyhow!("Failed to get the public IP address"))?;
 	
 	let mut url = format!("https://www.duckdns.org/update?domains={}&token={}&ip={}",
-		config.service.domain.iter().cloned().collect::<Vec<String>>().join(","),
+		config.service.domains_csv(),
 		config.service.token.as_ref().unwrap().as_str(),
 		ip
 	);
 
-	if config.service.ipv6.is_some_and(|enable| enable == true) {
+	if config.service.ipv6 == Some(true) {
 		let ipv6 = public_ip::addr_v6()
 			.await
 			.ok_or(anyhow!("Failed to get the public IPv6 address"))?;
@@ -28,7 +28,7 @@ async fn generate_request(config: &Config) -> Result<String> {
 
 fn clear_ip_addresses(config: &Config) -> Result<minreq::Response, minreq::Error> {
 	let url = format!("https://www.duckdns.org/update?domains={}&token={}&clear=true",
-		config.service.domain.iter().cloned().collect::<Vec<String>>().join(","),
+		config.service.domains_csv(),
 		config.service.token.as_ref().unwrap().as_str()
 	);
 
@@ -80,7 +80,7 @@ pub async fn update(config: &Config) -> Result<()> {
 		}
 	}
 
-	log::debug!("Sending update request for domains: {}", config.service.domain.iter().cloned().collect::<Vec<String>>().join(","));
+	log::debug!("Sending update request for domains: {}", config.service.domains_csv());
 	match minreq::get(url).send() {
 		Ok(res) => {
 			let body = res.as_str()?;
