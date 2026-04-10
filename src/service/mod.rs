@@ -3,7 +3,7 @@ use flexi_logger::{Cleanup, FileSpec, LogSpecification, Logger, LoggerHandle, Wr
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex;
 use std::ffi::OsString;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, SystemTime};
 use std::sync::{mpsc, Arc};
 use std::io::Write;
 use tokio::runtime::Runtime;
@@ -170,7 +170,7 @@ fn is_valid_domain(domain: &str) -> bool {
         && !domain.ends_with('-')
 }
 
-async fn handle_message(msg: &Request, context: &mut ServiceContext, update_tx: &mpsc::Sender<Config>) -> Result<Response> {
+async fn handle_message(msg: &Request, context: &mut ServiceContext, update_tx: &tokio::sync::mpsc::Sender<Config>) -> Result<Response> {
     log::info!("Received: {:?}", msg);
 
     let res = match msg {
@@ -240,7 +240,8 @@ async fn handle_message(msg: &Request, context: &mut ServiceContext, update_tx: 
 
     context.config.store()?;
     log_config_warnings(&context.config);
-    update_tx.send(context.config.clone())?;
+    update_tx.send(context.config.clone()).await
+        .map_err(|e| anyhow!("Failed to notify update loop: {e}"))?;
 
     log::debug!("New config:\n{}", context.config);
     Ok(res)
@@ -254,7 +255,7 @@ async fn send_response(pipe: &mut NamedPipeServer, response: Response) -> Result
         .map_err(|e| anyhow!("{e}"))
 }
 
-async fn force_update_on_service_start(update_tx: &mpsc::Sender<Config>, config: &Config, max_delay: Duration) {
+async fn force_update_on_service_start(update_tx: &tokio::sync::mpsc::Sender<Config>, config: &Config, max_delay: Duration) {
     let ms_since_boot = unsafe { GetTickCount64() } as u64;
     let uptime = Duration::from_millis(ms_since_boot);
 
@@ -264,12 +265,12 @@ async fn force_update_on_service_start(update_tx: &mpsc::Sender<Config>, config:
         tokio::time::sleep(to_sleep).await;
     }
 
-    if let Err(e) = update_tx.send(config.clone()) {
+    if let Err(e) = update_tx.send(config.clone()).await {
         log::error!("Failed to request an update: {e}");
     }
 }
 
-async fn service_listening_loop(mut context: ServiceContext, update_tx: mpsc::Sender<Config>) {
+async fn service_listening_loop(mut context: ServiceContext, update_tx: tokio::sync::mpsc::Sender<Config>) {
     force_update_on_service_start(&update_tx, &context.config, common::consts::MAX_STARTUP_BOOT_DELAY).await;
 
     loop {
@@ -330,20 +331,25 @@ async fn service_listening_loop(mut context: ServiceContext, update_tx: mpsc::Se
     }
 }
 
-async fn update_ip_loop(receiver: mpsc::Receiver<Config>, initial_config: Config, last_update_succeeded: Arc<Mutex<Option<SystemTime>>>) {
+async fn update_ip_loop(mut receiver: tokio::sync::mpsc::Receiver<Config>, initial_config: Config, last_update_succeeded: Arc<Mutex<Option<SystemTime>>>) {
     let mut config = initial_config;
-    let mut last_run = Instant::now();
+    let mut interval = tokio::time::interval(config.service.interval);
+    // The first tick completes immediately, which triggers the initial update.
+    // Subsequent ticks follow the configured interval.
 
     loop {
-        let mut config_changed = false;
-        if let Ok(c) = receiver.try_recv() {
-            config = c;
-            config_changed = true;
-        }
+        tokio::select! {
+            Some(c) = receiver.recv() => {
+                config = c;
+                interval = tokio::time::interval(config.service.interval);
+                interval.reset();
+            }
+            _ = interval.tick() => {},
+        };
 
         let ready = config.service.token.is_some() && !config.service.domain.is_empty();
 
-        if ready && (last_run.elapsed() >= config.service.interval || config_changed) {
+        if ready {
             if let Ok(()) = duckdns::update(&config).await {
                 *last_update_succeeded.lock().await = Some(SystemTime::now());
                 log::info!("Update succeeded");
@@ -351,18 +357,13 @@ async fn update_ip_loop(receiver: mpsc::Receiver<Config>, initial_config: Config
                 log::info!("Update failed");
             }
 
-            last_run = Instant::now();
             config.service.clear_ip_addresses = false;
         }
-
-        // let other tasks a chance to advance too,
-        // and reduce needless cpu usage
-        tokio::time::sleep(common::consts::UPDATE_IP_SLEEP_TIME).await;
     }
 }
 
 fn run_service(context: ServiceContext, shutdown_rx: mpsc::Receiver<()>) -> Result<()> {
-    let (update_tx, update_rx) = mpsc::channel();
+    let (update_tx, update_rx) = tokio::sync::mpsc::channel(8);
     let status_handle = context.status_handle.clone();
 
     // Tell the system that the service is running now
