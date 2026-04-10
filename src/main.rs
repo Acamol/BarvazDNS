@@ -103,7 +103,10 @@ async fn main() -> Result<()> {
             Err(s) if s.to_string().contains("code: 1063") => {
                 Cli::command().print_help()?;
             }
-            _ => {}
+            Err(e) => {
+                eprintln!("Service error: {e}");
+            }
+            Ok(_) => {}
         }
 
         return Ok(());

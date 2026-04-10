@@ -35,7 +35,8 @@ pub fn read() -> Result<Config> {
 	// if so, use it
 	if config_dir_path.is_dir() && config_file_path.is_file() {
 		let config_file = fs::read_to_string(&config_file_path)?;
-		return if let Ok(mut config) = toml::from_str::<Config>(&config_file) {
+		return match toml::from_str::<Config>(&config_file) {
+			Ok(mut config) => {
 				if config.service.interval < common::consts::MINIMAL_INTERVAL {
 					let min_human_time = humantime::format_duration(common::consts::MINIMAL_INTERVAL);
 					let interval_human_time = humantime::format_duration(config.service.interval);
@@ -50,9 +51,9 @@ pub fn read() -> Result<Config> {
 				// better to clear addresses in case the IPv6 configuration was changed
 				config.service.clear_ip_addresses = true;
 				Ok(config)
-			} else {
-				Err(anyhow!("Failed to parse the configuration file. Please check the TOML syntax for errors."))
-			};
+			}
+			Err(e) => Err(anyhow!("Failed to parse the configuration file: {e}")),
+		};
 	}
 
 	// there is not config file, let's create it

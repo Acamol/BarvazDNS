@@ -126,7 +126,8 @@ fn service_main(_args: Vec<OsString>) {
     set_service_status(&status_handle, ServiceState::StartPending, 0).unwrap();
 
 	let logger_handle = match logger_init() {
-        Err(_) => {
+        Err(e) => {
+            eprintln!("Failed to initialize logger: {e}");
             set_service_status(&status_handle, ServiceState::Stopped, 2).unwrap();
             return;
         }
@@ -262,8 +263,8 @@ async fn force_update_on_service_start(update_tx: &mpsc::Sender<Config>, config:
         tokio::time::sleep(to_sleep).await;
     }
 
-    if let Err(_) = update_tx.send(config.clone()) {
-        log::error!("Failed to request an update");
+    if let Err(e) = update_tx.send(config.clone()) {
+        log::error!("Failed to request an update: {e}");
     }
 }
 
@@ -303,7 +304,12 @@ async fn service_listening_loop(mut context: ServiceContext, update_tx: mpsc::Se
                             continue;
                         }
                         match handle_message(msg.request(), &mut context, &update_tx).await {
-                            Err(e) => log::error!("Failed to handle request, error: {e}"),
+                            Err(e) => {
+                                log::error!("Failed to handle request, error: {e}");
+                                if let Err(e) = send_response(&mut pipe, Response::Err(e.to_string())).await {
+                                    log::error!("Failed to send error response: {e}");
+                                }
+                            }
                             Ok(res) => {
                                 if let Err(e) = send_response(&mut pipe, res).await {
                                     log::error!("Failed to send response: {e}");

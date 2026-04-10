@@ -51,13 +51,7 @@ fn clear_ip_addresses(config: &Config) -> Result<minreq::Response, minreq::Error
 /// * `Err(e)` if an error occurred during the update process, including request
 ///   generation, clearing IP addresses, or sending the update.
 pub async fn update(config: &Config) -> Result<()> {
-	let url = match generate_request(&config).await {
-		Ok(u) => u,
-		Err(e) => {
-			log::error!("{e}");
-			return Err(anyhow!("{e}"));
-		}
-	};
+	let url = generate_request(&config).await?;
 
 	if config.service.clear_ip_addresses {
 		// the ipv6 confiugration might have been changed to false,
@@ -73,9 +67,7 @@ pub async fn update(config: &Config) -> Result<()> {
 				log::debug!("Clear sent. Response: {res:?}");
 			}
 			Err(e) => {
-				log::error!("Failed to clear IP addresses on DuckDNS");
-				log::debug!("Error is {e}");
-				return Err(anyhow!("{e}"));
+				return Err(anyhow!("Failed to clear IP addresses: {e}"));
 			}
 		}
 	}
