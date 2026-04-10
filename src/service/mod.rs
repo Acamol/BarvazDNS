@@ -26,9 +26,8 @@ use crate::common::{self,
 
 mod duckdns;
 mod config;
-mod named_pipe_extension;
-mod pipe_security;
-use named_pipe_extension::NamedPipeServerWithTimeout;
+mod named_pipe;
+use named_pipe::{NamedPipeServerWithTimeout, create_admin_pipe};
 
 
 define_windows_service!(duckdns_service_main, service_main);
@@ -272,7 +271,7 @@ async fn service_listening_loop(mut context: ServiceContext, update_tx: mpsc::Se
     force_update_on_service_start(&update_tx, &context.config, common::consts::MAX_STARTUP_BOOT_DELAY).await;
 
     loop {
-        match pipe_security::create_admin_pipe(common::strings::PIPE_NAME) {
+        match create_admin_pipe(common::strings::PIPE_NAME) {
             Ok(mut pipe) => {
                 log::debug!("Waiting for a client...");
                 if let Err(e) = pipe.connect_with_timeout(common::consts::PIPE_TIMEOUT).await {
