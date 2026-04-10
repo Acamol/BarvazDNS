@@ -76,7 +76,12 @@ pub struct Config {
 
 impl fmt::Display for Config {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", toml::to_string_pretty(self).unwrap())
+		write!(f,
+			"domains: {}\ninterval: {}\nipv6: {}",
+			self.service.domains_csv(),
+			humantime::format_duration(self.service.interval),
+			if self.service.ipv6 == Some(true) { "enabled" } else { "disabled" }
+		)
 	}
 }
 
