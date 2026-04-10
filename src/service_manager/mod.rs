@@ -12,7 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{arg_parser::InstallArgs, common::{message::{Request, Response}, strings::{SERVICE_DESCRIPTION, SERVICE_DISPLAY_NAME, SERVICE_NAME, VERSION}}};
+use crate::{arg_parser::InstallArgs, common::{self, message::{Request, Response}, strings::{SERVICE_DESCRIPTION, SERVICE_DISPLAY_NAME, SERVICE_NAME, VERSION}}};
 
 enum Answer {
     No,
@@ -138,7 +138,7 @@ pub fn uninstall_service() -> Result<()> {
     drop(service);
 
     let start = Instant::now();
-    let timeout = Duration::from_secs(5);
+    let timeout = common::consts::SERVICE_POLL_TIMEOUT;
     while start.elapsed() < timeout {
         if let Err(windows_service::Error::Winapi(e)) =
             service_manager.open_service(SERVICE_NAME, ServiceAccess::QUERY_STATUS)
@@ -236,7 +236,7 @@ pub fn stop_service() -> Result<()> {
             println!("{SERVICE_DISPLAY_NAME} is stop pending"); 
 
             let start = Instant::now();
-            let timeout = Duration::from_secs(5);
+            let timeout = common::consts::SERVICE_POLL_TIMEOUT;
             while start.elapsed() < timeout {
                 if service.query_status()?.current_state == ServiceState::Stopped {
                     return Ok(println!("{SERVICE_DISPLAY_NAME} has stopped"));

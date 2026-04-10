@@ -57,7 +57,7 @@ impl fmt::Display for ServiceConfig {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f,
 			"token: {}\ndomains: {}\ninterval: {}\nipv6: {}",
-			self.token.as_ref().map(|t| t.as_str()).unwrap_or(""),
+			self.token.as_ref().map(|t| t.as_str()).unwrap_or("<not set>"),
 			self.domains_csv(),
 			humantime::format_duration(self.interval),
 			if self.ipv6 == Some(true) { "enabled" } else { "disabled" }

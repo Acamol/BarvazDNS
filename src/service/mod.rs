@@ -63,7 +63,7 @@ fn logger_init() -> Result<LoggerHandle> {
             .basename(common::strings::LOG_FILE_BASENAME)
             .suppress_timestamp())
         .rotate(
-            flexi_logger::Criterion::Size(1024 * 1024), // 1MB
+            flexi_logger::Criterion::Size(common::consts::LOG_ROTATION_SIZE),
             flexi_logger::Naming::Timestamps,
             Cleanup::KeepLogFiles(3)
         )
