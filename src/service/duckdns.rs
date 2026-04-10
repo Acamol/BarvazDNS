@@ -32,7 +32,7 @@ fn clear_ip_addresses(config: &Config) -> Result<minreq::Response> {
 		config.service.token.as_ref().ok_or(anyhow!("No token configured"))?.as_str()
 	);
 
-	minreq::get(url).send().map_err(|e| anyhow!("{e}"))
+	Ok(minreq::get(url).send()?)
 }
 
 /// Updates DuckDNS with the provided configuration.
@@ -51,10 +51,10 @@ fn clear_ip_addresses(config: &Config) -> Result<minreq::Response> {
 /// * `Err(e)` if an error occurred during the update process, including request
 ///   generation, clearing IP addresses, or sending the update.
 pub async fn update(config: &Config) -> Result<()> {
-	let url = generate_request(&config).await?;
+	let url = generate_request(config).await?;
 
 	if config.service.clear_ip_addresses {
-		// the ipv6 confiugration might have been changed to false,
+		// the ipv6 configuration might have been changed to false,
 		// in which case we need to clear the ipv6 addrress
 		match clear_ip_addresses(config) {
 			Ok(res) => {

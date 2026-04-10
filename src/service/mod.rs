@@ -21,7 +21,7 @@ use flexi_logger::{DeferredNow, Record};
 use crate::common::strings::VERSION;
 use crate::common::{self,
     config::Config,
-    message::{ServiceRequest, Request, Response, Serialize, Deserialize},
+    message::{self, ServiceRequest, Request, Response},
 };
 
 mod duckdns;
@@ -249,14 +249,13 @@ async fn handle_message(msg: &Request, context: &mut ServiceContext, update_tx: 
 
 async fn send_response(pipe: &mut NamedPipeServer, response: Response) -> Result<()> {
     log::info!("response is {response:?}");
-    let encoded = response.serialize()?;
-    pipe.write_all(&encoded)
-        .await
-        .map_err(|e| anyhow!("{e}"))
+    let encoded = message::encode(&response)?;
+    pipe.write_all(&encoded).await?;
+    Ok(())
 }
 
 async fn force_update_on_service_start(update_tx: &tokio::sync::mpsc::Sender<Config>, config: &Config, max_delay: Duration) {
-    let ms_since_boot = unsafe { GetTickCount64() } as u64;
+    let ms_since_boot = unsafe { GetTickCount64() };
     let uptime = Duration::from_millis(ms_since_boot);
 
     if uptime < max_delay {
@@ -289,7 +288,7 @@ async fn service_listening_loop(mut context: ServiceContext, update_tx: tokio::s
                         log::debug!("Client disconnected");
                     }
                     Ok(bytes_read) => {
-                        let msg = match ServiceRequest::deserialize(&buffer) {
+                        let msg: ServiceRequest = match message::decode(&buffer) {
                             Ok(m) => m,
                             Err(e) => {
                                 log::error!("Failed to deserialize message, error: {e}");
