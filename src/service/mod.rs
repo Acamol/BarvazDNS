@@ -54,9 +54,10 @@ fn logger_init() -> Result<LoggerHandle> {
         return Err(anyhow!("{} is not a directory", path.to_str().unwrap_or_default()));
     }
 
-    let level = std::env::var(common::strings::ENV_VAR_LOG_LEVEL).unwrap_or("info".to_string());
+    let level = std::env::var(common::strings::ENV_VAR_LOG_LEVEL).unwrap_or_else(|_| "info".to_string());
 
-    Logger::try_with_str(&level).unwrap()
+    Logger::try_with_str(&level)
+        .map_err(|e| anyhow!("Invalid log level '{level}': {e}"))?
         .log_to_file(FileSpec::default()
             .directory(path)
             .basename(common::strings::LOG_FILE_BASENAME)
@@ -113,7 +114,7 @@ fn service_main(_args: Vec<OsString>) {
         match control_event {
             ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
             ServiceControl::Stop => {
-                shutdown_tx.send(()).unwrap();
+                let _ = shutdown_tx.send(());
                 ServiceControlHandlerResult::NoError
             }
             _ => ServiceControlHandlerResult::NotImplemented,
@@ -368,11 +369,11 @@ fn run_service(context: ServiceContext, shutdown_rx: mpsc::Receiver<()>) -> Resu
     set_service_status(&context.status_handle, ServiceState::Running, 0)?;
     log::info!("Service has started");
 
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().map_err(|e| anyhow!("Failed to create tokio runtime: {e}"))?;
     rt.block_on(async {
         let update_ip_handle = tokio::spawn(update_ip_loop(update_rx, context.config.clone(), context.last_update_succeeded.clone()));
         let listening_loop_handle = tokio::spawn(service_listening_loop(context, update_tx));
-        let shutdown_handle = tokio::spawn(async move {shutdown_rx.recv().unwrap();});
+        let shutdown_handle = tokio::spawn(async move { let _ = shutdown_rx.recv(); });
 
         tokio::select! {
             _ = listening_loop_handle => {

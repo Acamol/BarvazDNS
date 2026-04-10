@@ -82,7 +82,8 @@ pub fn install_service(args: InstallArgs) -> Result<()> {
     let manager_access = ServiceManagerAccess::CONNECT | ServiceManagerAccess::CREATE_SERVICE;
     let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
 
-    let service_binary_path = ::std::env::current_exe().unwrap();
+    let service_binary_path = ::std::env::current_exe()
+        .map_err(|e| anyhow!("Failed to determine executable path: {e}"))?;
 
     let service_info = ServiceInfo {
         name: OsString::from(SERVICE_NAME),

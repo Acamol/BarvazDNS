@@ -11,7 +11,7 @@ async fn generate_request(config: &Config) -> Result<String> {
 	
 	let mut url = format!("https://www.duckdns.org/update?domains={}&token={}&ip={}",
 		config.service.domains_csv(),
-		config.service.token.as_ref().unwrap().as_str(),
+		config.service.token.as_ref().ok_or(anyhow!("No token configured"))?.as_str(),
 		ip
 	);
 
@@ -26,13 +26,13 @@ async fn generate_request(config: &Config) -> Result<String> {
 	Ok(url)
 }
 
-fn clear_ip_addresses(config: &Config) -> Result<minreq::Response, minreq::Error> {
+fn clear_ip_addresses(config: &Config) -> Result<minreq::Response> {
 	let url = format!("https://www.duckdns.org/update?domains={}&token={}&clear=true",
 		config.service.domains_csv(),
-		config.service.token.as_ref().unwrap().as_str()
+		config.service.token.as_ref().ok_or(anyhow!("No token configured"))?.as_str()
 	);
 
-	minreq::get(url) .send()
+	minreq::get(url).send().map_err(|e| anyhow!("{e}"))
 }
 
 /// Updates DuckDNS with the provided configuration.
