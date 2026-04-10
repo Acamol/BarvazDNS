@@ -198,19 +198,17 @@ pub async fn get_last_status() -> Result<()> {
 /// indicating whether an update is available or the current version is up to date.
 /// Also queries the running service version and warns if it differs from the CLI.
 pub async fn check_update() {
-    let cli_version = env!("CARGO_PKG_VERSION");
-
     match common::version_check::check_for_update() {
         Some(latest) => print_update_notice(&latest),
-        None => println!("You are running the latest version ({cli_version})."),
+        None => println!("You are running the latest version ({}).", common::strings::VERSION),
     }
 
     check_service_version_mismatch().await;
 }
 
 /// Queries the running service version and warns if it differs from the CLI version.
-pub async fn check_service_version_mismatch() {
-    let cli_version = env!("CARGO_PKG_VERSION");
+async fn check_service_version_mismatch() {
+    let cli_version = common::strings::VERSION;
 
     let service_version = Request::Version.send().await.ok().and_then(|r| match r {
         Response::Version(v) => Some(v),
@@ -233,6 +231,6 @@ fn print_update_notice(latest: &str) {
     eprintln!(
         "\nA new version of BarvazDNS is available: {latest} (current: {}).\n\
          Download it from: https://github.com/acamol/BarvazDNS/releases/latest",
-        env!("CARGO_PKG_VERSION")
+        common::strings::VERSION
     );
 }

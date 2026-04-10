@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::fs;
 
 use anyhow::{Result, anyhow};
@@ -6,18 +5,18 @@ use anyhow::{Result, anyhow};
 use crate::common::{self, config::Config};
 
 
-fn create_config_directory(config_dir_path: &PathBuf) -> Result<()> {
-    if let Err(e) = fs::create_dir(&config_dir_path) {
+fn create_config_directory(dir_path: &std::path::Path) -> Result<()> {
+    if let Err(e) = fs::create_dir(dir_path) {
         return Err(anyhow!("Failed to create config directory: {}", e));
     }
 
     Ok(())
 }
 
-fn install_config_file(config_path: &PathBuf) -> Result<Config> {
-	if !config_path.is_dir() {
-		create_config_directory(config_path)?;
-		log::info!("Created the config directory in {config_path:?}");
+fn install_config_file(dir_path: &std::path::Path) -> Result<Config> {
+	if !dir_path.is_dir() {
+		create_config_directory(dir_path)?;
+		log::info!("Created the config directory in {dir_path:?}");
 	}
 
 	let config: Config = toml::from_str(common::strings::DEFAULT_CONFIG_CONTENT)?;

@@ -63,14 +63,14 @@ pub enum DebugLevelOption {
 }
 
 impl fmt::Display for DebugLevelOption {
- fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match self {
-        Self::Error => write!(f, "error"),
-        Self::Warn => write!(f, "warn"),
-        Self::Info => write!(f, "info"),
-        Self::Debug => write!(f, "debug"),
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Error => write!(f, "error"),
+            Self::Warn => write!(f, "warn"),
+            Self::Info => write!(f, "info"),
+            Self::Debug => write!(f, "debug"),
+        }
     }
- }
 }
 
 #[derive(Subcommand, Debug)]
@@ -99,7 +99,7 @@ pub enum Command {
     Config,
     /// Displays the last update attempt status.
     Status,
-    /// Checks if a newer version is available on GitHub.
+    /// Checks if a newer version is available.
     CheckUpdate,
     #[clap(hide = true)]
     Debug {

@@ -2,7 +2,7 @@ use crate::common::consts::LATEST_RELEASE_URL;
 
 /// Checks the latest GitHub release and returns the tag if it is newer than the current version.
 pub fn check_for_update() -> Option<String> {
-    let current: semver::Version = env!("CARGO_PKG_VERSION").parse().ok()?;
+    let current: semver::Version = crate::common::strings::VERSION.parse().ok()?;
 
     let response = minreq::get(LATEST_RELEASE_URL)
         .with_header("User-Agent", "BarvazDNS")

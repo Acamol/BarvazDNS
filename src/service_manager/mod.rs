@@ -195,7 +195,7 @@ pub fn start_service() -> Result<()> {
         }
     })?;
 
-    return if service_is_running()? {
+    if service_is_running()? {
         Ok(println!("{SERVICE_DISPLAY_NAME} is running."))
     } else {
         Err(anyhow!("Failed to start {SERVICE_DISPLAY_NAME}"))
@@ -230,7 +230,7 @@ pub fn stop_service() -> Result<()> {
 
     let status = service.stop();
 
-    return match status {
+    match status {
         Ok(state) if matches!(state.current_state, ServiceState::StopPending | ServiceState::Running) => {
             println!("{SERVICE_DISPLAY_NAME} is stop pending"); 
 
@@ -264,7 +264,7 @@ pub async fn version() -> Result<()> {
 
     let req = Request::Version;
     match req.send().await? {
-        Response::Version(ver) => return Ok(println!("Version {ver}")),
-        _ => return Err(anyhow!("Failed to receive response from the service")),
+        Response::Version(ver) => Ok(println!("Version {ver}")),
+        _ => Err(anyhow!("Failed to receive response from the service")),
     }
 }

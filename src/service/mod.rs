@@ -317,7 +317,7 @@ async fn service_listening_loop(mut context: ServiceContext, update_tx: mpsc::Se
                 }
             }
             Err(e) => {
-                log::error!("Falied to create pipe: {e:?}")
+                log::error!("Failed to create pipe: {e:?}")
             }
         }
     }

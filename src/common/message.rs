@@ -2,7 +2,7 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::{Result, anyhow};
 use bincode::{deserialize, serialize};
-use serde::{Deserialize as _Deserialize, Serialize as _Serialize};
+use serde::{Deserialize as SerdeDe, Serialize as SerdeSer};
 use tokio::{io::AsyncReadExt, net::windows::named_pipe::ClientOptions};
 use tokio::io::AsyncWriteExt;
 
@@ -20,7 +20,7 @@ pub trait Deserialize {
 		where Self: Sized;
 }
 
-#[derive(_Serialize, _Deserialize, Debug)]
+#[derive(SerdeSer, SerdeDe, Debug)]
 pub enum Request {
 	Interval(Duration),
 	Token(Token),
@@ -51,7 +51,7 @@ impl Request {
 	}
 }
 
-#[derive(_Serialize, _Deserialize, Debug)]
+#[derive(SerdeSer, SerdeDe, Debug)]
 pub struct ServiceRequest {
 	version: String,
 	request: Request,
@@ -94,7 +94,7 @@ impl Serialize for ServiceRequest {
 	}
 }
 
-#[derive(_Serialize, _Deserialize, Debug)]
+#[derive(SerdeSer, SerdeDe, Debug)]
 pub enum Response {
 	Ok,
 	Err(String),
