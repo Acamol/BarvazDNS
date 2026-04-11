@@ -56,6 +56,6 @@ pub fn read() -> Result<Config> {
 		};
 	}
 
-	// there is not config file, let's create it
+	// there is no config file, let's create it
 	install_config_file(&config_dir_path)
 }

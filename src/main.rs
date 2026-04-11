@@ -10,7 +10,7 @@
 //! * **Windows Service:** Runs in the background for continuous, automated updates.
 //! * **Human-Readable Interval:** Supports intervals in hours, minutes, and days (e.g., `5h`, `30m`, `1d`).
 //! * **TOML Configuration:** Uses a TOML configuration file for easy setup and modification.
-//! * **User-Specific Configuration:** Configuration file located in `%ProgramData%\BarvazDNS\config.toml`.
+//! * **Configuration:** Located in `%ProgramData%\BarvazDNS\config.toml`.
 //! * **Logging:** Detailed logs are stored in `%ProgramData%\BarvazDNS\`.
 //! * **IPv6 Support:** Option to enable or disable IPv6 updates.
 //! * **Open Source:** Feel free to modify, contribute, and distribute.
@@ -35,13 +35,15 @@
 //! * `BarvazDNS ipv6 disable`: Disables IPv6 updates.
 //! * `BarvazDNS update`: Forces an immediate update.
 //! * `BarvazDNS config`: Displays the current configuration.
-//! * `BarvazDNS status`: Displays the last update attempt status.
+//! * `BarvazDNS status`: Displays the last successful update time.
+//! * `BarvazDNS check-update`: Checks if a newer version is available.
 //! * `BarvazDNS service`: Service related commands.
 //!     * `BarvazDNS service install`: Installs the service.
 //!     * `BarvazDNS service install --no-startup`: Installs the service without start on startup.
 //!     * `BarvazDNS service uninstall`: Uninstalls the service.
 //!     * `BarvazDNS service start`: Starts the service.
 //!     * `BarvazDNS service stop`: Stops the service.
+//!     * `BarvazDNS service version`: Retrieves the running service version.
 //!
 //! # Logging
 //!

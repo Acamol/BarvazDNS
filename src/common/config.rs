@@ -120,7 +120,7 @@ impl Config {
 	pub fn store(&self) -> Result<()> {
 		let config_file_path = Self::get_config_file_path()?;
 
-		// create the config file if it does not exist
+		// write the current configuration to disk, creating the file if needed
 		let mut config_file = fs::OpenOptions::new()
 			.write(true)
 			.create(true)

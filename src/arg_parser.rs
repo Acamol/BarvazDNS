@@ -97,7 +97,7 @@ pub enum Command {
     Update,
     /// Displays the current configuration.
     Config,
-    /// Displays the last update attempt status.
+    /// Displays the time of the last successful update.
     Status,
     /// Checks if a newer version is available.
     CheckUpdate,

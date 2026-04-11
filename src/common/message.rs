@@ -64,7 +64,8 @@ impl ServiceRequest {
 
 	pub fn is_compatible(&self) -> bool {
 		if let Request::Version = self.request {
-			// otherwise this request has no useful usage
+			// Always allow Version requests through, even when versions differ,
+			// since the purpose of this request is to query a potentially-mismatched service.
 			return true;
 		}
 		self.version == strings::VERSION

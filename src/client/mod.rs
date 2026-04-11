@@ -15,7 +15,7 @@ fn expect_ok(response: Response) -> Result<()> {
     }
 }
 
-/// Sets the update interval of the service to DuckDNS.
+/// Sets the DuckDNS update interval on the service.
 ///
 /// Sends a request to the service to set its update interval to the specified `duration`.
 ///
@@ -25,8 +25,8 @@ fn expect_ok(response: Response) -> Result<()> {
 ///
 /// # Returns
 ///
-/// * `Ok(())` if the request was successfully sent.
-/// * `Err(e)` if an error occurred while sending the request.
+/// * `Ok(())` if the service accepted the new interval.
+/// * `Err(e)` if the service rejected the request or communication failed.
 pub async fn set_interval(duration: Duration) -> Result<()> {
     let msg = Request::Interval(duration);
     msg.send().await.and_then(expect_ok)
@@ -42,8 +42,8 @@ pub async fn set_interval(duration: Duration) -> Result<()> {
 ///
 /// # Returns
 ///
-/// * `Ok(())` if the request was successfully sent.
-/// * `Err(e)` if an error occurred while sending the request.
+/// * `Ok(())` if the service accepted the new token.
+/// * `Err(e)` if the service rejected the request or communication failed.
 pub async fn set_token(token: String) -> Result<()> {
     let msg = Request::Token(Token::new(token));
     msg.send().await.and_then(expect_ok)
@@ -60,8 +60,8 @@ pub async fn set_token(token: String) -> Result<()> {
 ///
 /// # Returns
 ///
-/// * `Ok(())` if the request was successfully sent.
-/// * `Err(e)` if an error occurred while sending the request.
+/// * `Ok(())` if the service added the domain.
+/// * `Err(e)` if the service rejected the request or communication failed.
 pub async fn add_domain(domain: String) -> Result<()> {
     let msg = Request::AddDomain(domain);
     msg.send().await.and_then(expect_ok)
@@ -78,8 +78,8 @@ pub async fn add_domain(domain: String) -> Result<()> {
 ///
 /// # Returns
 ///
-/// * `Ok(())` if the request was successfully sent.
-/// * `Err(e)` if an error occurred while sending the request.
+/// * `Ok(())` if the service removed the domain.
+/// * `Err(e)` if the service rejected the request or communication failed.
 pub async fn remove_domain(domain: String) -> Result<()> {
     let msg = Request::RemoveDomain(domain);
     msg.send().await.and_then(expect_ok)
@@ -91,8 +91,8 @@ pub async fn remove_domain(domain: String) -> Result<()> {
 ///
 /// # Returns
 ///
-/// * `Ok(())` if the request was successfully sent.
-/// * `Err(e)` if an error occurred while sending the request.
+/// * `Ok(())` if the service enabled IPv6 updates.
+/// * `Err(e)` if the service rejected the request or communication failed.
 pub async fn enable_ipv6() -> Result<()> {
     let msg = Request::Ipv6(true);
     msg.send().await.and_then(expect_ok)
@@ -104,8 +104,8 @@ pub async fn enable_ipv6() -> Result<()> {
 ///
 /// # Returns
 ///
-/// * `Ok(())` if the request was successfully sent.
-/// * `Err(e)` if an error occurred while sending the request.
+/// * `Ok(())` if the service disabled IPv6 updates.
+/// * `Err(e)` if the service rejected the request or communication failed.
 pub async fn disable_ipv6() -> Result<()> {
     let msg = Request::Ipv6(false);
     msg.send().await.and_then(expect_ok)
@@ -118,8 +118,8 @@ pub async fn disable_ipv6() -> Result<()> {
 ///
 /// # Returns
 ///
-/// * `Ok(())` if the request was successfully sent.
-/// * `Err(e)` if an error occurred while sending the request.
+/// * `Ok(())` if the update succeeded.
+/// * `Err(e)` if the update failed or communication failed.
 pub async fn force_update() -> Result<()> {
     let msg = Request::ForceUpdate;
     msg.send().await.and_then(|res| {
@@ -139,8 +139,8 @@ pub async fn force_update() -> Result<()> {
 ///
 /// # Returns
 ///
-/// * `Ok(())` if the request was successfully sent.
-/// * `Err(e)` if an error occurred while sending the request.
+/// * `Ok(())` if the service accepted the new level.
+/// * `Err(e)` if the service rejected the request or communication failed.
 pub async fn update_debug_level(level: String) -> Result<()> {
     let msg = Request::DebugLevel(level);
     msg.send().await.and_then(expect_ok)
@@ -166,10 +166,10 @@ pub async fn print_configuration() -> Result<()> {
     Ok(())
 }
 
-/// Prints the status of the last DuckDNS update attempt.
+/// Prints the time of the last successful DuckDNS update.
 ///
-/// Sends a request to the service to retrieve the status of the last DuckDNS update
-/// attempt and then prints whether the update succeeded or failed to the console.
+/// Sends a request to the service to retrieve the timestamp of the last successful
+/// DuckDNS update and prints it to the console.
 ///
 /// # Returns
 ///
