@@ -51,13 +51,25 @@ impl ServiceConfig {
 	pub fn domains_csv(&self) -> String {
 		self.domain.iter().cloned().collect::<Vec<String>>().join(",")
 	}
+
+	/// Returns a string representation that includes the plaintext token.
+	/// Only use this for direct display to an authenticated, privileged user.
+	pub fn to_string_with_token(&self) -> String {
+		format!(
+			"token: {}\ndomains: {}\ninterval: {}\nipv6: {}",
+			self.token.as_ref().map_or("<not set>", |t| t.as_str()),
+			self.domains_csv(),
+			humantime::format_duration(self.interval),
+			if self.ipv6 == Some(true) { "enabled" } else { "disabled" }
+		)
+	}
 }
 
 impl fmt::Display for ServiceConfig {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f,
 			"token: {}\ndomains: {}\ninterval: {}\nipv6: {}",
-			self.token.as_ref().map(|t| t.as_str()).unwrap_or("<not set>"),
+			self.token.as_ref().map_or("<not set>".to_string(), |t| t.to_string()),
 			self.domains_csv(),
 			humantime::format_duration(self.interval),
 			if self.ipv6 == Some(true) { "enabled" } else { "disabled" }

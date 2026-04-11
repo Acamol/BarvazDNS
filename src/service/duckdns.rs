@@ -55,7 +55,7 @@ pub async fn update(config: &Config) -> Result<()> {
 
 	if config.service.clear_ip_addresses {
 		// the ipv6 configuration might have been changed to false,
-		// in which case we need to clear the ipv6 addrress
+		// in which case we need to clear the ipv6 address
 		match clear_ip_addresses(config) {
 			Ok(res) => {
 				let body = res.as_str()?;
@@ -82,10 +82,6 @@ pub async fn update(config: &Config) -> Result<()> {
 				_ => Err(anyhow!("Bad response")),
 			}
 		}
-		Err(e) => {
-			log::error!("Failed to update DuckDNS");
-			log::debug!("Error is {e}");
-			return Err(anyhow!("{e}"));
-		}
+		Err(e) => Err(anyhow!("Failed to update DuckDNS: {e}")),
 	}
 }

@@ -158,7 +158,7 @@ pub async fn update_debug_level(level: String) -> Result<()> {
 pub async fn print_configuration() -> Result<()> {
     let msg = Request::GetConfig;
     match msg.send().await? {
-        Response::Config(config) => println!("{config}"),
+        Response::Config(config) => println!("{}", config.to_string_with_token()),
         Response::Err(e) => return Err(anyhow!("Bad response: {e}")),
         _ => return Err(anyhow!("Failed to send request")),
     }
@@ -179,7 +179,6 @@ pub async fn get_last_status() -> Result<()> {
     let msg = Request::GetStatus;
     match msg.send().await? {
         Response::Status(Some(last_update_time)) => {
-            // let since_epoch = last_update_time.duration_since(SystemTime::UNIX_EPOCH)?;
             let datetime: DateTime<Local> = last_update_time.into();
             let formatted_time = datetime.format("%Y-%m-%d %H:%M:%S");
             println!("Last update: {formatted_time}");
@@ -192,9 +191,9 @@ pub async fn get_last_status() -> Result<()> {
     Ok(())
 }
 
-/// Checks if a newer version of BarvazDNS is available on GitHub.
+/// Checks if a newer version of BarvazDNS is available.
 ///
-/// Queries the GitHub releases API for the latest version and prints a message
+/// Queries for the latest released version and prints a message
 /// indicating whether an update is available or the current version is up to date.
 /// Also queries the running service version and warns if it differs from the CLI.
 pub async fn check_update() {

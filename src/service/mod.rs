@@ -349,11 +349,12 @@ async fn update_ip_loop(mut receiver: tokio::sync::mpsc::Receiver<Config>, initi
         let ready = config.service.token.is_some() && !config.service.domain.is_empty();
 
         if ready {
-            if let Ok(()) = duckdns::update(&config).await {
-                *last_update_succeeded.lock().await = Some(SystemTime::now());
-                log::info!("Update succeeded");
-            } else {
-                log::info!("Update failed");
+            match duckdns::update(&config).await {
+                Ok(()) => {
+                    *last_update_succeeded.lock().await = Some(SystemTime::now());
+                    log::info!("Update succeeded");
+                }
+                Err(e) => log::error!("Update failed: {e}"),
             }
 
             config.service.clear_ip_addresses = false;
