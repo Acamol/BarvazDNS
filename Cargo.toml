@@ -23,4 +23,6 @@ semver = "1.0.28"
 
 [profile.release]
 lto = "fat"
-opt-level = 3
+opt-level = "s"
+strip = true
+panic = "abort"
