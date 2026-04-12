@@ -10,7 +10,7 @@
 //! * **Windows Service:** Runs in the background for continuous, automated updates.
 //! * **Human-Readable Interval:** Supports intervals in hours, minutes, and days (e.g., `5h`, `30m`, `1d`).
 //! * **TOML Configuration:** Uses a TOML configuration file for easy setup and modification.
-//! * **User-Specific Configuration:** Configuration file located in `%ProgramData%\BarvazDNS\config.toml`.
+//! * **Configuration:** Located in `%ProgramData%\BarvazDNS\config.toml`.
 //! * **Logging:** Detailed logs are stored in `%ProgramData%\BarvazDNS\`.
 //! * **IPv6 Support:** Option to enable or disable IPv6 updates.
 //! * **Open Source:** Feel free to modify, contribute, and distribute.
@@ -35,13 +35,15 @@
 //! * `BarvazDNS ipv6 disable`: Disables IPv6 updates.
 //! * `BarvazDNS update`: Forces an immediate update.
 //! * `BarvazDNS config`: Displays the current configuration.
-//! * `BarvazDNS status`: Displays the last update attempt status.
+//! * `BarvazDNS status`: Displays the last successful update time.
+//! * `BarvazDNS check-update`: Checks if a newer version is available.
 //! * `BarvazDNS service`: Service related commands.
 //!     * `BarvazDNS service install`: Installs the service.
 //!     * `BarvazDNS service install --no-startup`: Installs the service without start on startup.
 //!     * `BarvazDNS service uninstall`: Uninstalls the service.
 //!     * `BarvazDNS service start`: Starts the service.
 //!     * `BarvazDNS service stop`: Stops the service.
+//!     * `BarvazDNS service version`: Retrieves the running service version.
 //!
 //! # Logging
 //!
@@ -51,17 +53,21 @@
 //!
 //! MIT License.
 
-mod service;
-mod service_manager;
+mod arg_parser;
 mod client;
 mod common;
-mod arg_parser;
+mod service;
+mod service_manager;
 
-use anyhow::{Result, anyhow};
-use clap::{Parser, CommandFactory};
-use windows_sys::Win32::{Foundation::{CloseHandle, HANDLE}, Security::{self, GetTokenInformation}, System::Threading::{GetCurrentProcess, OpenProcessToken}};
-use std::process::exit;
 use crate::arg_parser::*;
+use anyhow::{Result, anyhow};
+use clap::{CommandFactory, Parser};
+use std::process::exit;
+use windows_sys::Win32::{
+    Foundation::{CloseHandle, HANDLE},
+    Security::{self, GetTokenInformation},
+    System::Threading::{GetCurrentProcess, OpenProcessToken},
+};
 
 fn is_admin() -> bool {
     unsafe {
@@ -72,14 +78,16 @@ fn is_admin() -> bool {
         }
 
         let mut token_elevation: Security::TOKEN_ELEVATION = std::mem::zeroed();
-        let token_elevation_ptr = &mut token_elevation as *mut Security::TOKEN_ELEVATION as *mut std::ffi::c_void;
+        let token_elevation_ptr =
+            &mut token_elevation as *mut Security::TOKEN_ELEVATION as *mut std::ffi::c_void;
         let mut return_length = 0;
         let ret = GetTokenInformation(
             token_handle,
             Security::TokenElevation,
             token_elevation_ptr,
             std::mem::size_of_val(&token_elevation) as u32,
-            &mut return_length);
+            &mut return_length,
+        );
 
         CloseHandle(token_handle);
 
@@ -103,7 +111,10 @@ async fn main() -> Result<()> {
             Err(s) if s.to_string().contains("code: 1063") => {
                 Cli::command().print_help()?;
             }
-            _ => {}
+            Err(e) => {
+                eprintln!("Service error: {e}");
+            }
+            Ok(_) => {}
         }
 
         return Ok(());
@@ -116,21 +127,34 @@ async fn main() -> Result<()> {
     let args = Cli::parse();
 
     match args.command {
-        Command::Service(ServiceCommands { command: ServiceSubcommands::Install(args) }) => handle_service_result(service_manager::install_service(args)),
-        Command::Service(ServiceCommands { command: ServiceSubcommands::Uninstall }) => handle_service_result(service_manager::uninstall_service()),
-        Command::Service(ServiceCommands { command: ServiceSubcommands::Start }) => handle_service_result(service_manager::start_service()),
-        Command::Service(ServiceCommands { command: ServiceSubcommands::Stop }) => handle_service_result(service_manager::stop_service()),
-        Command::Service(ServiceCommands { command: ServiceSubcommands::Version }) => handle_service_result(service_manager::version().await),
+        Command::Service(ServiceCommands {
+            command: ServiceSubcommands::Install(args),
+        }) => handle_service_result(service_manager::install_service(args)),
+        Command::Service(ServiceCommands {
+            command: ServiceSubcommands::Uninstall,
+        }) => handle_service_result(service_manager::uninstall_service()),
+        Command::Service(ServiceCommands {
+            command: ServiceSubcommands::Start,
+        }) => handle_service_result(service_manager::start_service()),
+        Command::Service(ServiceCommands {
+            command: ServiceSubcommands::Stop,
+        }) => handle_service_result(service_manager::stop_service()),
+        Command::Service(ServiceCommands {
+            command: ServiceSubcommands::Version,
+        }) => handle_service_result(service_manager::version().await),
         Command::Interval { interval } => client::set_interval(interval).await?,
         Command::Token { token } => client::set_token(token).await?,
         Command::Domain(DomainSubCommands::Add { domain }) => client::add_domain(domain).await?,
-        Command::Domain(DomainSubCommands::Remove { domain }) => client::remove_domain(domain).await?,
+        Command::Domain(DomainSubCommands::Remove { domain }) => {
+            client::remove_domain(domain).await?
+        }
         Command::Ipv6(IPv6SubCommands::Enable) => client::enable_ipv6().await?,
         Command::Ipv6(IPv6SubCommands::Disable) => client::disable_ipv6().await?,
         Command::Update => client::force_update().await?,
         Command::Debug { level } => client::update_debug_level(level.to_string()).await?,
         Command::Config => client::print_configuration().await?,
         Command::Status => client::get_last_status().await?,
+        Command::CheckUpdate => client::check_update().await,
     }
 
     Ok(())

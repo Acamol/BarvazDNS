@@ -1,9 +1,8 @@
-use clap::{Parser, Subcommand, ValueEnum, Args};
-use std::{fmt, time::Duration};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use humantime::{format_duration, parse_duration};
+use std::{fmt, time::Duration};
 
 use crate::common;
-
 
 #[derive(Parser, Debug)]
 pub struct ServiceCommands {
@@ -43,7 +42,7 @@ pub enum DomainSubCommands {
     Remove {
         #[arg(value_parser)]
         domain: String,
-    }
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -63,14 +62,14 @@ pub enum DebugLevelOption {
 }
 
 impl fmt::Display for DebugLevelOption {
- fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match self {
-        Self::Error => write!(f, "error"),
-        Self::Warn => write!(f, "warn"),
-        Self::Info => write!(f, "info"),
-        Self::Debug => write!(f, "debug"),
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Error => write!(f, "error"),
+            Self::Warn => write!(f, "warn"),
+            Self::Info => write!(f, "info"),
+            Self::Debug => write!(f, "debug"),
+        }
     }
- }
 }
 
 #[derive(Subcommand, Debug)]
@@ -97,13 +96,15 @@ pub enum Command {
     Update,
     /// Displays the current configuration.
     Config,
-    /// Displays the last update attempt status.
+    /// Displays the time of the last successful update.
     Status,
+    /// Checks if a newer version is available.
+    CheckUpdate,
     #[clap(hide = true)]
     Debug {
         #[arg(value_enum)]
         level: DebugLevelOption,
-    }
+    },
 }
 
 #[derive(Parser, Debug)]
@@ -116,7 +117,11 @@ pub struct Cli {
 fn parse_humantime_duration(s: &str) -> Result<Duration, String> {
     let duration = parse_duration(s).map_err(|e| e.to_string())?;
     if duration < common::consts::MINIMAL_INTERVAL {
-        Err(format!("Duration must be at least {}, got {}", format_duration(common::consts::MINIMAL_INTERVAL), format_duration(duration)))
+        Err(format!(
+            "Duration must be at least {}, got {}",
+            format_duration(common::consts::MINIMAL_INTERVAL),
+            format_duration(duration)
+        ))
     } else {
         Ok(duration)
     }

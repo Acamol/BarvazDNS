@@ -42,19 +42,18 @@ pub const LOG_FILE_BASENAME: &str = "service";
 pub const ENV_VAR_LOG_LEVEL: &str = "BARVAZ_LOG_LEVEL";
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-
 #[cfg(test)]
 mod tests {
-	use std::time::Duration;
+    use std::time::Duration;
 
-use crate::common::config::Config;
+    use crate::common::config::Config;
 
-use super::*;
+    use super::*;
 
-	#[test]
-	fn test_default_config_deserialization() {
-		let config: Config = toml::from_str(DEFAULT_CONFIG_CONTENT).unwrap();
-		assert!(config.service.domain.is_empty());
-		assert_eq!(config.service.interval, Duration::from_secs(24 * 60 * 60));
-	}
+    #[test]
+    fn test_default_config_deserialization() {
+        let config: Config = toml::from_str(DEFAULT_CONFIG_CONTENT).unwrap();
+        assert!(config.service.domain.is_empty());
+        assert_eq!(config.service.interval, Duration::from_secs(24 * 60 * 60));
+    }
 }

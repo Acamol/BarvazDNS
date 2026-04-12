@@ -1,6 +1,6 @@
 [package]
 name = "BarvazDNS"
-version = "1.1.0"
+version = "1.1.1"
 edition = "2024"
 
 [dependencies]
@@ -19,7 +19,13 @@ humantime-serde = "1.1"
 toml = { version = "0.8", features = ["display"] }
 minreq = { version = "2.13", features = ["https"]}
 public-ip = "0.2"
+semver = "1.0.28"
+
+[build-dependencies]
+embed-resource = "3"
 
 [profile.release]
 lto = "fat"
-opt-level = 3
+opt-level = "s"
+strip = true
+panic = "abort"

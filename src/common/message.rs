@@ -1,111 +1,90 @@
 use std::time::{Duration, SystemTime};
 
 use anyhow::{Result, anyhow};
-use bincode::{deserialize, serialize};
-use serde::{Deserialize as _Deserialize, Serialize as _Serialize};
-use tokio::{io::AsyncReadExt, net::windows::named_pipe::ClientOptions};
+use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
+use tokio::{io::AsyncReadExt, net::windows::named_pipe::ClientOptions};
 
 use super::{config, strings};
 
 pub use config::Token;
 
-
-pub trait Serialize {
-	fn serialize(&self) -> Result<Vec<u8>>;
+pub fn encode<T: Serialize>(value: &T) -> Result<Vec<u8>> {
+    Ok(bincode::serialize(value)?)
 }
 
-pub trait Deserialize {
-	fn deserialize(bytes: &[u8]) -> Result<Self>
-		where Self: Sized;
+pub fn decode<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T> {
+    Ok(bincode::deserialize(bytes)?)
 }
 
-#[derive(_Serialize, _Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum Request {
-	Interval(Duration),
-	Token(Token),
-	AddDomain(String),
-	RemoveDomain(String),
-	Ipv6(bool),
-	ForceUpdate,
-	DebugLevel(String),
-	GetConfig,
-	GetStatus,
-	Version,
+    Interval(Duration),
+    Token(Token),
+    AddDomain(String),
+    RemoveDomain(String),
+    Ipv6(bool),
+    ForceUpdate,
+    DebugLevel(String),
+    GetConfig,
+    GetStatus,
+    Version,
 }
 
 impl Request {
-	pub async fn send(self) -> Result<Response> {
-		// Try to connect to the named pipe
-		let mut client = ClientOptions::new()
-			.open(strings::PIPE_NAME)
-			.map_err(|_| anyhow!("Failed to communicate with the service. Verify it is running."))?;
+    pub async fn send(self) -> Result<Response> {
+        // Try to connect to the named pipe
+        let mut client = ClientOptions::new().open(strings::PIPE_NAME).map_err(|_| {
+            anyhow!("Failed to communicate with the service. Verify it is running.")
+        })?;
 
-		let service_request = ServiceRequest::new(self);
-		let encode = serialize(&service_request)?;
-		client.write_all(&encode).await?;
+        let service_request = ServiceRequest::new(self);
+        let encoded = encode(&service_request)?;
+        client.write_all(&encoded).await?;
 
-		let mut buf = vec![0; super::consts::PIPE_BUFFER_SIZE];
-		client.read(&mut buf).await?;
-		deserialize(&buf).map_err(|e| anyhow!("{e}"))
-	}
+        let mut buf = vec![0; super::consts::PIPE_BUFFER_SIZE];
+        let n = client.read(&mut buf).await?;
+        decode(&buf[..n])
+    }
 }
 
-#[derive(_Serialize, _Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ServiceRequest {
-	version: String,
-	request: Request,
+    version: String,
+    request: Request,
 }
 
 impl ServiceRequest {
-	fn new(request: Request) -> Self {
-		ServiceRequest {
-			version: strings::VERSION.to_string(),
-			request,
-		}
-	}
+    fn new(request: Request) -> Self {
+        ServiceRequest {
+            version: strings::VERSION.to_string(),
+            request,
+        }
+    }
 
-	pub fn is_compatible(&self) -> bool {
-		if let Request::Version = self.request {
-			// otherwise this request has no useful usage
-			return true;
-		}
-		self.version == strings::VERSION
-	}
+    pub fn is_compatible(&self) -> bool {
+        if let Request::Version = self.request {
+            // Always allow Version requests through, even when versions differ,
+            // since the purpose of this request is to query a potentially-mismatched service.
+            return true;
+        }
+        self.version == strings::VERSION
+    }
 
-	pub fn version(&self) -> &str {
-		&self.version
-	}
+    pub fn version(&self) -> &str {
+        &self.version
+    }
 
-	pub fn request(&self) -> &Request {
-		&self.request
-	}
+    pub fn request(&self) -> &Request {
+        &self.request
+    }
 }
 
-impl Deserialize for ServiceRequest {
-	fn deserialize(bytes: &[u8]) -> Result<Self> {
-		deserialize::<Self>(bytes).map_err(|e| anyhow!("{e}"))
-	}
-}
-
-impl Serialize for ServiceRequest {
-	fn serialize(&self) -> Result<Vec<u8>> {
-		serialize(self).map_err(|e| anyhow!("{e}"))
-	}
-}
-
-#[derive(_Serialize, _Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
-	Ok,
-	Err(String),
-	Config(config::ServiceConfig),
-	Status(Option<SystemTime>),
-	Version(String),
-}
-
-// TODO: implement with macro?
-impl Serialize for Response {
-	fn serialize(&self) -> Result<Vec<u8>> {
-		serialize(self).map_err(|e| anyhow!("{e}"))
-	}
+    Ok,
+    Err(String),
+    Config(config::ServiceConfig),
+    Status(Option<SystemTime>),
+    Version(String),
 }
