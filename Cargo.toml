@@ -21,6 +21,9 @@ minreq = { version = "2.13", features = ["https"]}
 public-ip = "0.2"
 semver = "1.0.28"
 
+[build-dependencies]
+embed-resource = "3"
+
 [profile.release]
 lto = "fat"
 opt-level = "s"
