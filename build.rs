@@ -4,5 +4,7 @@ fn main() {
         return;
     }
 
-    embed_resource::compile("resources/icon.rc", embed_resource::NONE);
+    embed_resource::compile("resources/icon.rc", embed_resource::NONE)
+        .manifest_optional()
+        .unwrap();
 }
