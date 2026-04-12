@@ -12,7 +12,7 @@ jobs:
   release:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -28,7 +28,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo registry and build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -46,9 +46,11 @@ jobs:
       - name: Extract tag annotation
         id: tag_info
         run: |
-          $message = git tag -l --format='%(contents)' $env:GITHUB_REF_NAME
+          $message = (git tag -l --format='%(contents)' $env:GITHUB_REF_NAME) -join "`n"
+          $message = $message.Trim()
           "body<<EOF" | Out-File -Append $env:GITHUB_OUTPUT
-          $message | Out-File -Append $env:GITHUB_OUTPUT
+          $message | Out-File -Append -NoNewline $env:GITHUB_OUTPUT
+          "`n" | Out-File -Append -NoNewline $env:GITHUB_OUTPUT
           "EOF" | Out-File -Append $env:GITHUB_OUTPUT
 
       - name: Compute SHA-256
@@ -58,7 +60,7 @@ jobs:
           "sha256=$hash" | Out-File -Append $env:GITHUB_OUTPUT
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: "${{ github.ref_name }}: Change Log"
           body: |
