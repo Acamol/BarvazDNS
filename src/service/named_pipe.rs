@@ -6,8 +6,8 @@ use tokio::io::AsyncReadExt;
 use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
 use tokio::time::timeout;
 use windows_sys::Win32::Foundation::LocalFree;
-use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
 use windows_sys::Win32::Security::Authorization::ConvertStringSecurityDescriptorToSecurityDescriptorW;
+use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
 
 /// SDDL security descriptor that restricts pipe access to privileged accounts.
 ///
@@ -67,8 +67,7 @@ pub fn create_admin_pipe(name: &str) -> io::Result<NamedPipeServer> {
     };
 
     let result = unsafe {
-        ServerOptions::new()
-            .create_with_security_attributes_raw(name, &mut sa as *mut _ as *mut _)
+        ServerOptions::new().create_with_security_attributes_raw(name, &mut sa as *mut _ as *mut _)
     };
 
     unsafe { LocalFree(sd) };

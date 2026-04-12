@@ -7,4 +7,5 @@ pub const MINIMAL_INTERVAL: Duration = Duration::from_secs(5);
 pub const MAX_STARTUP_BOOT_DELAY: Duration = Duration::from_secs(30);
 pub const LOG_ROTATION_SIZE: u64 = 1024 * 1024; // 1MB
 pub const SERVICE_POLL_TIMEOUT: Duration = Duration::from_secs(5);
-pub const LATEST_RELEASE_URL: &str = "https://api.github.com/repos/acamol/BarvazDNS/releases/latest";
+pub const LATEST_RELEASE_URL: &str =
+    "https://api.github.com/repos/acamol/BarvazDNS/releases/latest";

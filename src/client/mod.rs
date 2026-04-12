@@ -3,9 +3,8 @@ use std::time::Duration;
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Local};
 
-use crate::common::message::{Request, Response, Token};
 use crate::common;
-
+use crate::common::message::{Request, Response, Token};
 
 fn expect_ok(response: Response) -> Result<()> {
     match response {
@@ -182,7 +181,7 @@ pub async fn get_last_status() -> Result<()> {
             let datetime: DateTime<Local> = last_update_time.into();
             let formatted_time = datetime.format("%Y-%m-%d %H:%M:%S");
             println!("Last update: {formatted_time}");
-        },
+        }
         Response::Status(None) => println!("No updates have been performed yet."),
         Response::Err(e) => return Err(anyhow!("Bad response: {e}")),
         _ => return Err(anyhow!("Failed to send request")),
@@ -199,7 +198,10 @@ pub async fn get_last_status() -> Result<()> {
 pub async fn check_update() {
     match common::version_check::check_for_update() {
         Some(latest) => print_update_notice(&latest),
-        None => println!("You are running the latest version ({}).", common::strings::VERSION),
+        None => println!(
+            "You are running the latest version ({}).",
+            common::strings::VERSION
+        ),
     }
 
     check_service_version_mismatch().await;
