@@ -1,0 +1,69 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag is on master
+        run: |
+          $branches = git branch -r --contains $env:GITHUB_SHA
+          if ($branches -notmatch 'origin/master') {
+            Write-Error "Tag is not on master branch. Aborting release."
+            exit 1
+          }
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-release-
+
+      - name: Run tests
+        run: cargo test
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Extract tag annotation
+        id: tag_info
+        run: |
+          $message = git tag -l --format='%(contents)' $env:GITHUB_REF_NAME
+          "body<<EOF" | Out-File -Append $env:GITHUB_OUTPUT
+          $message | Out-File -Append $env:GITHUB_OUTPUT
+          "EOF" | Out-File -Append $env:GITHUB_OUTPUT
+
+      - name: Compute SHA-256
+        id: checksum
+        run: |
+          $hash = (Get-FileHash -Algorithm SHA256 target/release/BarvazDNS.exe).Hash
+          "sha256=$hash" | Out-File -Append $env:GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "${{ github.ref_name }}: Change Log"
+          body: |
+            ${{ steps.tag_info.outputs.body }}
+
+            SHA-256: ${{ steps.checksum.outputs.sha256 }}
+          files: target/release/BarvazDNS.exe
+          draft: false
