@@ -86,7 +86,10 @@ pub fn install_service(args: InstallArgs) -> Result<()> {
                     uninstall_service()?;
                     break;
                 }
-                Ok(Answer::No) => return Ok(println!("Installation aborted.")),
+                Ok(Answer::No) => {
+                    println!("Installation aborted.");
+                    return Ok(());
+                }
                 Err(e) => println!("{e}"),
             }
         }
@@ -117,7 +120,8 @@ pub fn install_service(args: InstallArgs) -> Result<()> {
     let service = service_manager.create_service(&service_info, ServiceAccess::CHANGE_CONFIG)?;
     service.set_description(SERVICE_DESCRIPTION)?;
 
-    Ok(println!("{} is installed.", SERVICE_DISPLAY_NAME))
+    println!("{} is installed.", SERVICE_DISPLAY_NAME);
+    Ok(())
 }
 
 /// Uninstalls the Windows service.
@@ -159,15 +163,16 @@ pub fn uninstall_service() -> Result<()> {
     while start.elapsed() < timeout {
         if let Err(windows_service::Error::Winapi(e)) =
             service_manager.open_service(SERVICE_NAME, ServiceAccess::QUERY_STATUS)
+            && e.raw_os_error() == Some(ERROR_SERVICE_DOES_NOT_EXIST as i32)
         {
-            if e.raw_os_error() == Some(ERROR_SERVICE_DOES_NOT_EXIST as i32) {
-                return Ok(println!("{SERVICE_DISPLAY_NAME} is uninstalled."));
-            }
+            println!("{SERVICE_DISPLAY_NAME} is uninstalled.");
+            return Ok(());
         }
         sleep(Duration::from_secs(1));
     }
 
-    Ok(println!("{SERVICE_DISPLAY_NAME} is marked for deletion."))
+    println!("{SERVICE_DISPLAY_NAME} is marked for deletion.");
+    Ok(())
 }
 
 /// Starts the Windows service.
@@ -190,7 +195,10 @@ pub fn start_service() -> Result<()> {
                     install_service(InstallArgs { no_startup: false })?;
                     break;
                 }
-                Ok(Answer::No) => return Ok(println!("Start command aborted.")),
+                Ok(Answer::No) => {
+                    println!("Start command aborted.");
+                    return Ok(());
+                }
                 Err(e) => println!("{e}."),
             }
         }
@@ -214,7 +222,8 @@ pub fn start_service() -> Result<()> {
     })?;
 
     if service_is_running()? {
-        Ok(println!("{SERVICE_DISPLAY_NAME} is running."))
+        println!("{SERVICE_DISPLAY_NAME} is running.");
+        Ok(())
     } else {
         Err(anyhow!("Failed to start {SERVICE_DISPLAY_NAME}"))
     }
@@ -261,14 +270,16 @@ pub fn stop_service() -> Result<()> {
             let timeout = common::consts::SERVICE_POLL_TIMEOUT;
             while start.elapsed() < timeout {
                 if service.query_status()?.current_state == ServiceState::Stopped {
-                    return Ok(println!("{SERVICE_DISPLAY_NAME} has stopped"));
+                    println!("{SERVICE_DISPLAY_NAME} has stopped");
+                    return Ok(());
                 }
                 sleep(Duration::from_secs(1));
             }
             Ok(())
         }
         Ok(state) if state.current_state == ServiceState::Stopped => {
-            Ok(println!("{SERVICE_DISPLAY_NAME} has stopped"))
+            println!("{SERVICE_DISPLAY_NAME} has stopped");
+            Ok(())
         }
         Ok(state) => Err(anyhow!(
             "{SERVICE_DISPLAY_NAME} is in an invalid state {:?}",
@@ -292,7 +303,10 @@ pub async fn version() -> Result<()> {
 
     let req = Request::Version;
     match req.send().await? {
-        Response::Version(ver) => Ok(println!("Version {ver}")),
+        Response::Version(ver) => {
+            println!("Version {ver}");
+            Ok(())
+        }
         _ => Err(anyhow!("Failed to receive response from the service")),
     }
 }

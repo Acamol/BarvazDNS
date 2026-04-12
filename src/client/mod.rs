@@ -216,14 +216,14 @@ async fn check_service_version_mismatch() {
         _ => None,
     });
 
-    if let Some(sv) = service_version {
-        if sv != cli_version {
-            eprintln!(
-                "Warning: version mismatch — CLI is v{cli_version} \
-                 but the running service is v{sv}. \
-                 Reinstall the service to ensure both use the same version."
-            );
-        }
+    if let Some(sv) = service_version
+        && sv != cli_version
+    {
+        eprintln!(
+            "Warning: version mismatch — CLI is v{cli_version} \
+             but the running service is v{sv}. \
+             Reinstall the service to ensure both use the same version."
+        );
     }
 }
 

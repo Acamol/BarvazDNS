@@ -433,7 +433,7 @@ async fn update_ip_loop(
 
 fn run_service(context: ServiceContext, shutdown_rx: mpsc::Receiver<()>) -> Result<()> {
     let (update_tx, update_rx) = tokio::sync::mpsc::channel(8);
-    let status_handle = context.status_handle.clone();
+    let status_handle = context.status_handle;
 
     // Tell the system that the service is running now
     set_service_status(&context.status_handle, ServiceState::Running, 0)?;
