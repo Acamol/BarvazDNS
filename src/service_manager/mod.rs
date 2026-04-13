@@ -8,6 +8,7 @@ use windows_sys::Win32::Foundation::ERROR_SERVICE_DOES_NOT_EXIST;
 
 use std::{ffi::OsString, io::Write};
 use std::{
+    process::Command,
     thread::sleep,
     time::{Duration, Instant},
 };
@@ -16,6 +17,7 @@ use crate::{
     arg_parser::InstallArgs,
     common::{
         self,
+        config::Config,
         message::{Request, Response},
         strings::{SERVICE_DESCRIPTION, SERVICE_DISPLAY_NAME, SERVICE_NAME, VERSION},
     },
@@ -40,7 +42,7 @@ fn yes_no_question(question: &str) -> Result<Answer> {
     }
 }
 
-fn service_is_running() -> Result<bool> {
+pub fn service_is_running() -> Result<bool> {
     let manager_access = ServiceManagerAccess::CONNECT;
     let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
 
@@ -61,6 +63,58 @@ fn service_is_installed() -> Result<bool> {
     Ok(service_manager
         .open_service(SERVICE_NAME, service_access)
         .is_ok())
+}
+
+fn spawn_tray() -> Result<()> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+    const DETACHED_PROCESS: u32 = 0x0000_0008;
+
+    let exe =
+        std::env::current_exe().map_err(|e| anyhow!("Failed to determine executable path: {e}"))?;
+    Command::new(exe)
+        .arg("tray")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .creation_flags(CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS)
+        .spawn()
+        .map_err(|e| anyhow!("Failed to spawn tray icon process: {e}"))?;
+    Ok(())
+}
+
+fn register_tray_startup() -> Result<()> {
+    let exe =
+        std::env::current_exe().map_err(|e| anyhow!("Failed to determine executable path: {e}"))?;
+    let task_run = format!("\"{}\" tray", exe.display());
+    Command::new("schtasks")
+        .args([
+            "/Create",
+            "/TN",
+            "BarvazDNS Tray",
+            "/TR",
+            &task_run,
+            "/SC",
+            "ONLOGON",
+            "/RL",
+            "HIGHEST",
+            "/F",
+        ])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map_err(|e| anyhow!("Failed to register tray startup task: {e}"))?;
+    Ok(())
+}
+
+fn unregister_tray_startup() {
+    let _ = Command::new("schtasks")
+        .args(["/Delete", "/TN", "BarvazDNS Tray", "/F"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
 }
 
 /// Installs the Windows service.
@@ -112,13 +166,17 @@ pub fn install_service(args: InstallArgs) -> Result<()> {
         },
         error_control: ServiceErrorControl::Normal,
         executable_path: service_binary_path,
-        launch_arguments: vec![],
+        launch_arguments: vec![OsString::from("service"), OsString::from("run-as-service")],
         dependencies: vec![],
         account_name: None,
         account_password: None,
     };
     let service = service_manager.create_service(&service_info, ServiceAccess::CHANGE_CONFIG)?;
     service.set_description(SERVICE_DESCRIPTION)?;
+
+    if let Err(e) = register_tray_startup() {
+        log::warn!("Failed to register tray startup: {e}");
+    }
 
     println!("{} is installed.", SERVICE_DISPLAY_NAME);
     Ok(())
@@ -155,6 +213,8 @@ pub fn uninstall_service() -> Result<()> {
         // If the service cannot be stopped, it will be deleted when the system restarts.
         service.stop()?;
     }
+
+    unregister_tray_startup();
     // Explicitly close our open handle to the service. This is automatically called when `service` goes out of scope.
     drop(service);
 
@@ -166,13 +226,35 @@ pub fn uninstall_service() -> Result<()> {
             && e.raw_os_error() == Some(ERROR_SERVICE_DOES_NOT_EXIST as i32)
         {
             println!("{SERVICE_DISPLAY_NAME} is uninstalled.");
+            prompt_delete_config_directory();
             return Ok(());
         }
         sleep(Duration::from_secs(1));
     }
 
     println!("{SERVICE_DISPLAY_NAME} is marked for deletion.");
+    prompt_delete_config_directory();
     Ok(())
+}
+
+fn prompt_delete_config_directory() {
+    match Config::get_config_directory_path() {
+        Ok(path) if path.is_dir() => loop {
+            match yes_no_question("Do you want to delete the configuration directory?") {
+                Ok(Answer::Yes) => {
+                    if let Err(e) = std::fs::remove_dir_all(&path) {
+                        eprintln!("Failed to delete configuration directory: {e}");
+                    } else {
+                        println!("Configuration directory deleted.");
+                    }
+                    break;
+                }
+                Ok(Answer::No) => break,
+                Err(e) => println!("{e}"),
+            }
+        },
+        _ => {}
+    }
 }
 
 /// Starts the Windows service.
@@ -223,6 +305,14 @@ pub fn start_service() -> Result<()> {
 
     if service_is_running()? {
         println!("{SERVICE_DISPLAY_NAME} is running.");
+        if let Err(e) = spawn_tray() {
+            if let Err(stop_err) = stop_service() {
+                return Err(anyhow!(
+                    "{e}. Additionally, failed to stop the service: {stop_err}"
+                ));
+            }
+            return Err(e);
+        }
         Ok(())
     } else {
         Err(anyhow!("Failed to start {SERVICE_DISPLAY_NAME}"))

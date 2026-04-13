@@ -22,6 +22,12 @@ pub enum ServiceSubcommands {
     Stop,
     /// Retrieves the service version.
     Version,
+    /// Internal entry point used by the Windows Service Control Manager (SCM).
+    /// This is not intended to be invoked directly by users.
+    /// It is automatically passed as a launch argument when the service is installed,
+    /// so that the SCM starts the process with `BarvazDNS.exe service run-as-service`.
+    #[clap(hide = true)]
+    RunAsService,
 }
 
 #[derive(Args, Debug)]
@@ -100,11 +106,17 @@ pub enum Command {
     Status,
     /// Checks if a newer version is available.
     CheckUpdate,
+    /// Deletes all log files.
+    ClearLogs,
+    /// Dynamically changes the service log level.
     #[clap(hide = true)]
     Debug {
         #[arg(value_enum)]
         level: DebugLevelOption,
     },
+    /// Internal entry point for the system tray icon process.
+    #[clap(hide = true)]
+    Tray,
 }
 
 #[derive(Parser, Debug)]
@@ -112,6 +124,10 @@ pub enum Command {
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
+
+    /// Internal flag set when the process re-launches itself elevated.
+    #[arg(long, hide = true, global = true)]
+    pub elevated: bool,
 }
 
 fn parse_humantime_duration(s: &str) -> Result<Duration, String> {
@@ -124,5 +140,51 @@ fn parse_humantime_duration(s: &str) -> Result<Duration, String> {
         ))
     } else {
         Ok(duration)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_valid_durations() {
+        assert_eq!(
+            parse_humantime_duration("10s").unwrap(),
+            Duration::from_secs(10)
+        );
+        assert_eq!(
+            parse_humantime_duration("1m").unwrap(),
+            Duration::from_secs(60)
+        );
+        assert_eq!(
+            parse_humantime_duration("1h 30m").unwrap(),
+            Duration::from_secs(5400)
+        );
+        assert_eq!(
+            parse_humantime_duration("2h").unwrap(),
+            Duration::from_secs(7200)
+        );
+    }
+
+    #[test]
+    fn parse_exact_minimum() {
+        assert_eq!(
+            parse_humantime_duration("5s").unwrap(),
+            common::consts::MINIMAL_INTERVAL
+        );
+    }
+
+    #[test]
+    fn parse_below_minimum_is_rejected() {
+        assert!(parse_humantime_duration("4s").is_err());
+        assert!(parse_humantime_duration("1s").is_err());
+    }
+
+    #[test]
+    fn parse_invalid_format_is_rejected() {
+        assert!(parse_humantime_duration("").is_err());
+        assert!(parse_humantime_duration("abc").is_err());
+        assert!(parse_humantime_duration("-5s").is_err());
     }
 }

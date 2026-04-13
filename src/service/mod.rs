@@ -39,14 +39,15 @@ pub fn service_dispatcher() -> Result<()> {
         .map_err(|e| anyhow!("Dispatching error: {e:#?}"))
 }
 
-fn logger_init() -> Result<LoggerHandle> {
+fn logger_init(log_level: &str) -> Result<LoggerHandle> {
     let log_formatter =
         |w: &mut dyn Write, now: &mut DeferredNow, record: &Record| -> Result<(), std::io::Error> {
             write!(
                 w,
-                "[{}] {}: {}",
+                "[{}] {} [{}]: {}",
                 now.now().format("%Y-%m-%d %H:%M:%S"),
                 record.level(),
+                record.module_path().unwrap_or("<unknown>"),
                 record.args()
             )
         };
@@ -60,11 +61,8 @@ fn logger_init() -> Result<LoggerHandle> {
         ));
     }
 
-    let level =
-        std::env::var(common::strings::ENV_VAR_LOG_LEVEL).unwrap_or_else(|_| "info".to_string());
-
-    Logger::try_with_str(&level)
-        .map_err(|e| anyhow!("Invalid log level '{level}': {e}"))?
+    Logger::try_with_str(log_level)
+        .map_err(|e| anyhow!("Invalid log level '{log_level}': {e}"))?
         .log_to_file(
             FileSpec::default()
                 .directory(path)
@@ -74,7 +72,7 @@ fn logger_init() -> Result<LoggerHandle> {
         .rotate(
             flexi_logger::Criterion::Size(common::consts::LOG_ROTATION_SIZE),
             flexi_logger::Naming::Timestamps,
-            Cleanup::KeepLogFiles(3),
+            Cleanup::KeepLogFiles(common::consts::LOG_KEEP_FILES),
         )
         .write_mode(WriteMode::Direct)
         .format_for_files(log_formatter)
@@ -125,6 +123,15 @@ fn log_config_warnings(config: &Config) {
     }
 }
 
+fn ensure_config_directory() -> Result<()> {
+    let path = Config::get_config_directory_path()?;
+    if !path.is_dir() {
+        std::fs::create_dir_all(&path)
+            .map_err(|e| anyhow!("Failed to create config directory: {e}"))?;
+    }
+    Ok(())
+}
+
 fn service_main(_args: Vec<OsString>) {
     let (shutdown_tx, shutdown_rx) = mpsc::channel();
 
@@ -145,7 +152,15 @@ fn service_main(_args: Vec<OsString>) {
 
     set_service_status(&status_handle, ServiceState::StartPending, 0).unwrap();
 
-    let logger_handle = match logger_init() {
+    // Ensure config directory exists
+    if let Err(e) = ensure_config_directory() {
+        eprintln!("{e}");
+        set_service_status(&status_handle, ServiceState::Stopped, 3).unwrap();
+        return;
+    }
+
+    // Initialize logger with default level first so early log messages are captured
+    let logger_handle = match logger_init("info") {
         Err(e) => {
             eprintln!("Failed to initialize logger: {e}");
             set_service_status(&status_handle, ServiceState::Stopped, 2).unwrap();
@@ -154,7 +169,7 @@ fn service_main(_args: Vec<OsString>) {
         Ok(handle) => handle,
     };
 
-    // also creates the app directory if it does not exist yet
+    // Read config (may emit log messages)
     let config = match config::read() {
         Ok(c) => c,
         Err(e) => {
@@ -163,6 +178,13 @@ fn service_main(_args: Vec<OsString>) {
             return;
         }
     };
+
+    // Apply the configured log level (env var overrides config)
+    let level = std::env::var(common::strings::ENV_VAR_LOG_LEVEL)
+        .unwrap_or_else(|_| config.service.log_level.clone());
+    if let Ok(spec) = LogSpecification::parse(&level) {
+        logger_handle.set_new_spec(spec);
+    }
 
     log::debug!("Service is running with the following configuration:\n{config}");
     log_config_warnings(&config);
@@ -191,46 +213,66 @@ fn is_valid_domain(domain: &str) -> bool {
         && !domain.ends_with('-')
 }
 
+fn validate_interval(interval: &Duration) -> Result<()> {
+    if *interval < common::consts::MINIMAL_INTERVAL {
+        Err(anyhow!(
+            "Got interval of {}, minimal interval is {}",
+            humantime::format_duration(*interval),
+            humantime::format_duration(common::consts::MINIMAL_INTERVAL)
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn validate_add_domain(domain: &str, existing: &std::collections::HashSet<String>) -> Result<()> {
+    if !is_valid_domain(domain) {
+        Err(anyhow!("Invalid domain name: {domain}"))
+    } else if existing.len() >= common::consts::MAX_DOMAIN_COUNT {
+        Err(anyhow!(
+            "The number of domains to update is limited to {}",
+            common::consts::MAX_DOMAIN_COUNT
+        ))
+    } else if existing.contains(domain) {
+        Err(anyhow!("Domain {domain} already exists"))
+    } else {
+        Ok(())
+    }
+}
+
+fn validate_remove_domain(
+    domain: &str,
+    existing: &std::collections::HashSet<String>,
+) -> Result<()> {
+    if existing.contains(domain) {
+        Ok(())
+    } else {
+        Err(anyhow!("Domain {domain} does not exist"))
+    }
+}
+
 async fn handle_message(
     msg: &Request,
     context: &mut ServiceContext,
     update_tx: &tokio::sync::mpsc::Sender<Config>,
 ) -> Result<Response> {
-    log::info!("Received: {:?}", msg);
+    log::debug!("Received: {:?}", msg);
 
     let res = match msg {
         Request::Interval(interval) => {
-            if *interval < common::consts::MINIMAL_INTERVAL {
-                Err(anyhow!(
-                    "Got interval of {}, minimal interval is {}",
-                    humantime::format_duration(*interval),
-                    humantime::format_duration(common::consts::MINIMAL_INTERVAL)
-                ))
-            } else {
-                context.config.service.interval = *interval;
-                Ok(Response::Ok)
-            }
+            validate_interval(interval)?;
+            context.config.service.interval = *interval;
+            Ok(Response::Ok)
         }
         Request::AddDomain(domain) => {
-            if !is_valid_domain(domain) {
-                Err(anyhow!("Invalid domain name: {domain}"))
-            } else if context.config.service.domain.len() >= common::consts::MAX_DOMAIN_COUNT {
-                Err(anyhow!(
-                    "The number of domains to update is limited to {}",
-                    common::consts::MAX_DOMAIN_COUNT
-                ))
-            } else if context.config.service.domain.insert(domain.clone()) {
-                Ok(Response::Ok)
-            } else {
-                Err(anyhow!("Domain {domain} already exists"))
-            }
+            validate_add_domain(domain, &context.config.service.domain)?;
+            context.config.service.domain.insert(domain.clone());
+            Ok(Response::Ok)
         }
         Request::RemoveDomain(domain) => {
-            if context.config.service.domain.remove(domain) {
-                Ok(Response::Ok)
-            } else {
-                Err(anyhow!("Domain {domain} does not exist"))
-            }
+            validate_remove_domain(domain, &context.config.service.domain)?;
+            context.config.service.domain.remove(domain);
+            Ok(Response::Ok)
         }
         Request::Token(token) => {
             context.config.service.token.replace(token.clone());
@@ -282,7 +324,7 @@ async fn handle_message(
 }
 
 async fn send_response(pipe: &mut NamedPipeServer, response: Response) -> Result<()> {
-    log::info!("response is {response:?}");
+    log::debug!("response is {response:?}");
     let encoded = message::encode(&response)?;
     pipe.write_all(&encoded).await?;
     Ok(())
@@ -468,4 +510,114 @@ fn run_service(context: ServiceContext, shutdown_rx: mpsc::Receiver<()>) -> Resu
     log::info!("Service has stopped");
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn valid_domains() {
+        assert!(is_valid_domain("mydomain"));
+        assert!(is_valid_domain("test123"));
+        assert!(is_valid_domain("my-domain"));
+        assert!(is_valid_domain("a"));
+        assert!(is_valid_domain("a-b-c"));
+    }
+
+    #[test]
+    fn valid_domain_max_length() {
+        let domain = "a".repeat(63);
+        assert!(is_valid_domain(&domain));
+    }
+
+    #[test]
+    fn empty_domain_is_invalid() {
+        assert!(!is_valid_domain(""));
+    }
+
+    #[test]
+    fn domain_exceeding_max_length_is_invalid() {
+        let domain = "a".repeat(64);
+        assert!(!is_valid_domain(&domain));
+    }
+
+    #[test]
+    fn domain_starting_with_hyphen_is_invalid() {
+        assert!(!is_valid_domain("-domain"));
+    }
+
+    #[test]
+    fn domain_ending_with_hyphen_is_invalid() {
+        assert!(!is_valid_domain("domain-"));
+    }
+
+    #[test]
+    fn domain_with_special_chars_is_invalid() {
+        assert!(!is_valid_domain("my.domain"));
+        assert!(!is_valid_domain("my domain"));
+        assert!(!is_valid_domain("my@domain"));
+        assert!(!is_valid_domain("my$domain"));
+        assert!(!is_valid_domain("dom&ain"));
+    }
+
+    #[test]
+    fn domain_with_url_injection_is_invalid() {
+        assert!(!is_valid_domain("test&token=stolen"));
+        assert!(!is_valid_domain("test?token=stolen"));
+    }
+
+    #[test]
+    fn validate_interval_at_minimum() {
+        assert!(validate_interval(&common::consts::MINIMAL_INTERVAL).is_ok());
+    }
+
+    #[test]
+    fn validate_interval_above_minimum() {
+        assert!(validate_interval(&Duration::from_secs(3600)).is_ok());
+    }
+
+    #[test]
+    fn validate_interval_below_minimum() {
+        assert!(validate_interval(&Duration::from_secs(1)).is_err());
+    }
+
+    #[test]
+    fn validate_add_domain_success() {
+        let existing = HashSet::new();
+        assert!(validate_add_domain("myhost", &existing).is_ok());
+    }
+
+    #[test]
+    fn validate_add_domain_invalid_name() {
+        let existing = HashSet::new();
+        assert!(validate_add_domain("-bad", &existing).is_err());
+    }
+
+    #[test]
+    fn validate_add_domain_duplicate() {
+        let existing: HashSet<String> = ["myhost".to_string()].into();
+        assert!(validate_add_domain("myhost", &existing).is_err());
+    }
+
+    #[test]
+    fn validate_add_domain_at_limit() {
+        let existing: HashSet<String> = (0..common::consts::MAX_DOMAIN_COUNT)
+            .map(|i| format!("host{i}"))
+            .collect();
+        assert!(validate_add_domain("onemore", &existing).is_err());
+    }
+
+    #[test]
+    fn validate_remove_domain_exists() {
+        let existing: HashSet<String> = ["myhost".to_string()].into();
+        assert!(validate_remove_domain("myhost", &existing).is_ok());
+    }
+
+    #[test]
+    fn validate_remove_domain_not_found() {
+        let existing = HashSet::new();
+        assert!(validate_remove_domain("missing", &existing).is_err());
+    }
 }

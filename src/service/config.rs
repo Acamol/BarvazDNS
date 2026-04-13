@@ -26,6 +26,21 @@ fn install_config_file(dir_path: &std::path::Path) -> Result<Config> {
     Ok(config)
 }
 
+fn clamp_interval(config: &mut Config) {
+    if config.service.interval < common::consts::MINIMAL_INTERVAL {
+        let min_human_time = humantime::format_duration(common::consts::MINIMAL_INTERVAL);
+        let interval_human_time = humantime::format_duration(config.service.interval);
+
+        log::info!(
+            "Interval must be at least {}, got {}, using {}",
+            min_human_time,
+            interval_human_time,
+            min_human_time
+        );
+        config.service.interval = common::consts::MINIMAL_INTERVAL;
+    }
+}
+
 pub fn read() -> Result<Config> {
     let config_dir_path = Config::get_config_directory_path()?;
 
@@ -36,22 +51,7 @@ pub fn read() -> Result<Config> {
         let config_file = fs::read_to_string(&config_file_path)?;
         return match toml::from_str::<Config>(&config_file) {
             Ok(mut config) => {
-                if config.service.interval < common::consts::MINIMAL_INTERVAL {
-                    let min_human_time =
-                        humantime::format_duration(common::consts::MINIMAL_INTERVAL);
-                    let interval_human_time = humantime::format_duration(config.service.interval);
-
-                    log::info!(
-                        "Interval must be at least {}, got {}, using {}",
-                        min_human_time,
-                        interval_human_time,
-                        min_human_time
-                    );
-                    config.service.interval = common::consts::MINIMAL_INTERVAL;
-
-                    // we can now store the new interval, but we'll allow bad configuration -
-                    // just ignore it
-                }
+                clamp_interval(&mut config);
                 // to be on the safe side, when we read from the config file,
                 // better to clear addresses in case the IPv6 configuration was changed
                 config.service.clear_ip_addresses = true;
@@ -63,4 +63,48 @@ pub fn read() -> Result<Config> {
 
     // there is no config file, let's create it
     install_config_file(&config_dir_path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    use crate::common::config::{ServiceConfig, Token};
+    use std::collections::HashSet;
+
+    fn make_config(interval_secs: u64) -> Config {
+        Config {
+            service: ServiceConfig {
+                token: Some(Token::new("test".to_string())),
+                domain: HashSet::new(),
+                interval: Duration::from_secs(interval_secs),
+                ipv6: None,
+                log_level: "info".to_string(),
+                clear_ip_addresses: false,
+            },
+            client: None,
+        }
+    }
+
+    #[test]
+    fn clamp_interval_below_minimum() {
+        let mut config = make_config(1);
+        clamp_interval(&mut config);
+        assert_eq!(config.service.interval, common::consts::MINIMAL_INTERVAL);
+    }
+
+    #[test]
+    fn clamp_interval_at_minimum() {
+        let mut config = make_config(5);
+        clamp_interval(&mut config);
+        assert_eq!(config.service.interval, Duration::from_secs(5));
+    }
+
+    #[test]
+    fn clamp_interval_above_minimum() {
+        let mut config = make_config(3600);
+        clamp_interval(&mut config);
+        assert_eq!(config.service.interval, Duration::from_secs(3600));
+    }
 }

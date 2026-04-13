@@ -1,13 +1,13 @@
 [package]
 name = "BarvazDNS"
-version = "1.1.1"
+version = "1.2.0"
 edition = "2024"
 
 [dependencies]
 anyhow = "1.0"
 tokio = { version = "1", features = ["full"] }
 windows-service = "0.8.0"
-windows-sys = { version = "0.59", features = ["Win32_Security", "Win32_Security_Authorization", "Win32_System_SystemInformation"] }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Security", "Win32_Security_Authorization", "Win32_System_Console", "Win32_System_LibraryLoader", "Win32_System_SystemInformation", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 log = "0.4"
 flexi_logger = "0.27"
 clap = { version = "4.5", features = ["derive"] }
@@ -20,6 +20,7 @@ toml = { version = "0.8", features = ["display"] }
 minreq = { version = "2.13", features = ["https"]}
 public-ip = "0.2"
 semver = "1.0.28"
+serde_json = "1"
 
 [build-dependencies]
 embed-resource = "3"

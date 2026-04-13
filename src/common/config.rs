@@ -42,8 +42,14 @@ pub struct ServiceConfig {
     #[serde(with = "humantime_serde")]
     pub interval: Duration,
     pub ipv6: Option<bool>,
-    #[serde(skip_serializing, default)]
+    #[serde(default = "default_log_level")]
+    pub log_level: String,
+    #[serde(skip, default)]
     pub clear_ip_addresses: bool,
+}
+
+fn default_log_level() -> String {
+    "info".to_string()
 }
 
 impl ServiceConfig {
@@ -151,5 +157,72 @@ impl Config {
             .map_err(|e| anyhow!("Failed to write config file: {e}"))?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_config(
+        token: Option<&str>,
+        domains: &[&str],
+        interval_secs: u64,
+        ipv6: Option<bool>,
+    ) -> ServiceConfig {
+        ServiceConfig {
+            token: token.map(|t| Token::new(t.to_string())),
+            domain: domains.iter().map(|d| d.to_string()).collect(),
+            interval: Duration::from_secs(interval_secs),
+            ipv6,
+            log_level: "info".to_string(),
+            clear_ip_addresses: false,
+        }
+    }
+
+    #[test]
+    fn domains_csv_empty() {
+        let config = make_config(None, &[], 60, None);
+        assert_eq!(config.domains_csv(), "");
+    }
+
+    #[test]
+    fn domains_csv_single() {
+        let config = make_config(None, &["myhost"], 60, None);
+        assert_eq!(config.domains_csv(), "myhost");
+    }
+
+    #[test]
+    fn domains_csv_multiple() {
+        let config = make_config(None, &["a", "b", "c"], 60, None);
+        let csv = config.domains_csv();
+        let mut parts: Vec<&str> = csv.split(',').collect();
+        parts.sort();
+        assert_eq!(parts, vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn to_string_with_token_present() {
+        let config = make_config(Some("secret123"), &["home"], 300, Some(true));
+        let s = config.to_string_with_token();
+        assert!(s.contains("secret123"));
+        assert!(s.contains("home"));
+        assert!(s.contains("enabled"));
+    }
+
+    #[test]
+    fn to_string_with_token_absent() {
+        let config = make_config(None, &[], 60, None);
+        let s = config.to_string_with_token();
+        assert!(s.contains("<not set>"));
+        assert!(s.contains("disabled"));
+    }
+
+    #[test]
+    fn display_masks_token() {
+        let config = make_config(Some("secret123"), &["home"], 300, None);
+        let displayed = format!("{config}");
+        assert!(!displayed.contains("secret123"));
+        assert!(displayed.contains("***"));
     }
 }
