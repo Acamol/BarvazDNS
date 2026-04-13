@@ -123,6 +123,15 @@ fn log_config_warnings(config: &Config) {
     }
 }
 
+fn ensure_config_directory() -> Result<()> {
+    let path = Config::get_config_directory_path()?;
+    if !path.is_dir() {
+        std::fs::create_dir_all(&path)
+            .map_err(|e| anyhow!("Failed to create config directory: {e}"))?;
+    }
+    Ok(())
+}
+
 fn service_main(_args: Vec<OsString>) {
     let (shutdown_tx, shutdown_rx) = mpsc::channel();
 
@@ -142,6 +151,13 @@ fn service_main(_args: Vec<OsString>) {
         service_control_handler::register(common::strings::SERVICE_NAME, event_handler).unwrap();
 
     set_service_status(&status_handle, ServiceState::StartPending, 0).unwrap();
+
+    // Ensure config directory exists
+    if let Err(e) = ensure_config_directory() {
+        eprintln!("{e}");
+        set_service_status(&status_handle, ServiceState::Stopped, 3).unwrap();
+        return;
+    }
 
     // Initialize logger with default level first so early log messages are captured
     let logger_handle = match logger_init("info") {
