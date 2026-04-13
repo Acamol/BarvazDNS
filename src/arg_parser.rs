@@ -114,7 +114,7 @@ pub enum Command {
         #[arg(value_enum)]
         level: DebugLevelOption,
     },
-    /// Displays a system tray icon while the service is running.
+    /// Internal entry point for the system tray icon process.
     #[clap(hide = true)]
     Tray,
 }

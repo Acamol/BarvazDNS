@@ -324,7 +324,7 @@ async fn handle_message(
 }
 
 async fn send_response(pipe: &mut NamedPipeServer, response: Response) -> Result<()> {
-    log::info!("response is {response:?}");
+    log::debug!("response is {response:?}");
     let encoded = message::encode(&response)?;
     pipe.write_all(&encoded).await?;
     Ok(())

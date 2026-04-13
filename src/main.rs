@@ -72,10 +72,18 @@ fn handle_service_result(result: Result<()>) {
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let args = Cli::parse();
 
+    if matches!(args.command, Command::Tray) {
+        return tray::run();
+    }
+
+    tokio_main(args)
+}
+
+#[tokio::main]
+async fn tokio_main(args: Cli) -> Result<()> {
     match args.command {
         Command::Service(ServiceCommands {
             command: ServiceSubcommands::Install(args),
@@ -113,7 +121,7 @@ async fn main() -> Result<()> {
         Command::Status => client::get_last_status().await?,
         Command::CheckUpdate => client::check_update().await,
         Command::ClearLogs => client::clear_logs()?,
-        Command::Tray => tray::run()?,
+        Command::Tray => unreachable!(),
     }
 
     Ok(())

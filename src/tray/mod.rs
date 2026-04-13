@@ -82,7 +82,7 @@ fn show_context_menu(hwnd: HWND) {
             menu,
             MF_STRING,
             IDM_OPEN_CONFIG,
-            wide_string("Open Config Folder").as_ptr(),
+            wide_string("Open Configuration Folder").as_ptr(),
         );
         AppendMenuW(menu, MF_SEPARATOR, 0, std::ptr::null());
         AppendMenuW(
@@ -108,9 +108,22 @@ fn show_context_menu(hwnd: HWND) {
     }
 }
 
-fn handle_menu_command(id: usize) {
+fn set_tooltip_text(hwnd: HWND, text: &str) {
+    let ptr = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) };
+    if ptr != 0 {
+        let nid = unsafe { &mut *(ptr as *mut NOTIFYICONDATAW) };
+        let tip = wide_string(text);
+        let len = tip.len().min(nid.szTip.len());
+        nid.szTip = [0; 128];
+        nid.szTip[..len].copy_from_slice(&tip[..len]);
+        unsafe { Shell_NotifyIconW(NIM_MODIFY, nid) };
+    }
+}
+
+fn handle_menu_command(hwnd: HWND, id: usize) {
     match id {
         IDM_STOP_SERVICE => {
+            set_tooltip_text(hwnd, &format!("{SERVICE_DISPLAY_NAME} — Stopping..."));
             let _ = service_manager::stop_service();
         }
         IDM_FORCE_UPDATE => {
@@ -120,7 +133,18 @@ fn handle_menu_command(id: usize) {
         }
         IDM_OPEN_CONFIG => {
             if let Ok(path) = crate::common::config::Config::get_config_directory_path() {
-                let _ = std::process::Command::new("explorer.exe").arg(path).spawn();
+                let path_wide = wide_string(&path.to_string_lossy());
+                let verb = wide_string("open");
+                unsafe {
+                    windows_sys::Win32::UI::Shell::ShellExecuteW(
+                        std::ptr::null_mut(),
+                        verb.as_ptr(),
+                        path_wide.as_ptr(),
+                        std::ptr::null(),
+                        std::ptr::null(),
+                        windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
+                    );
+                }
             }
         }
         _ => {}
@@ -142,7 +166,7 @@ unsafe extern "system" fn wnd_proc(
             0
         }
         WM_COMMAND => {
-            handle_menu_command(wparam & 0xFFFF);
+            handle_menu_command(hwnd, wparam & 0xFFFF);
             0
         }
         WM_TIMER if wparam == TRAY_TIMER_ID => {
