@@ -5,12 +5,13 @@ fn main() {
         .args(["config", "core.hooksPath", ".githooks"])
         .status();
 
-    // Skip resource embedding for debug builds
+    // Only embed resources (icon + admin manifest) in release builds.
+    // In debug, this avoids requiring elevation to run tests.
     if std::env::var("PROFILE").unwrap_or("debug".to_string()) != "release" {
         return;
     }
 
-    embed_resource::compile("resources/icon.rc", embed_resource::NONE)
+    embed_resource::compile("resources/app.rc", embed_resource::NONE)
         .manifest_optional()
         .unwrap();
 }

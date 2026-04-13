@@ -60,40 +60,9 @@ mod service;
 mod service_manager;
 
 use crate::arg_parser::*;
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use clap::Parser;
 use std::process::exit;
-use windows_sys::Win32::{
-    Foundation::{CloseHandle, HANDLE},
-    Security::{self, GetTokenInformation},
-    System::Threading::{GetCurrentProcess, OpenProcessToken},
-};
-
-fn is_admin() -> bool {
-    unsafe {
-        let mut token_handle: HANDLE = std::mem::zeroed();
-        let process_handle = GetCurrentProcess();
-        if OpenProcessToken(process_handle, Security::TOKEN_QUERY, &mut token_handle) == 0 {
-            return false;
-        }
-
-        let mut token_elevation: Security::TOKEN_ELEVATION = std::mem::zeroed();
-        let token_elevation_ptr =
-            &mut token_elevation as *mut Security::TOKEN_ELEVATION as *mut std::ffi::c_void;
-        let mut return_length = 0;
-        let ret = GetTokenInformation(
-            token_handle,
-            Security::TokenElevation,
-            token_elevation_ptr,
-            std::mem::size_of_val(&token_elevation) as u32,
-            &mut return_length,
-        );
-
-        CloseHandle(token_handle);
-
-        ret != 0 && token_elevation.TokenIsElevated != 0
-    }
-}
 
 fn handle_service_result(result: Result<()>) {
     if let Err(e) = result {
@@ -104,10 +73,6 @@ fn handle_service_result(result: Result<()>) {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    if !is_admin() {
-        return Err(anyhow!("This program requires administrator privileges."));
-    }
-
     let args = Cli::parse();
 
     match args.command {
