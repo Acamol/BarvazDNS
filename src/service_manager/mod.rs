@@ -8,6 +8,7 @@ use windows_sys::Win32::Foundation::ERROR_SERVICE_DOES_NOT_EXIST;
 
 use std::{ffi::OsString, io::Write};
 use std::{
+    process::Command,
     thread::sleep,
     time::{Duration, Instant},
 };
@@ -40,7 +41,7 @@ fn yes_no_question(question: &str) -> Result<Answer> {
     }
 }
 
-fn service_is_running() -> Result<bool> {
+pub fn service_is_running() -> Result<bool> {
     let manager_access = ServiceManagerAccess::CONNECT;
     let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
 
@@ -61,6 +62,19 @@ fn service_is_installed() -> Result<bool> {
     Ok(service_manager
         .open_service(SERVICE_NAME, service_access)
         .is_ok())
+}
+
+fn spawn_tray() -> Result<()> {
+    let exe =
+        std::env::current_exe().map_err(|e| anyhow!("Failed to determine executable path: {e}"))?;
+    Command::new(exe)
+        .arg("tray")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| anyhow!("Failed to spawn tray icon process: {e}"))?;
+    Ok(())
 }
 
 /// Installs the Windows service.
@@ -223,6 +237,14 @@ pub fn start_service() -> Result<()> {
 
     if service_is_running()? {
         println!("{SERVICE_DISPLAY_NAME} is running.");
+        if let Err(e) = spawn_tray() {
+            if let Err(stop_err) = stop_service() {
+                return Err(anyhow!(
+                    "{e}. Additionally, failed to stop the service: {stop_err}"
+                ));
+            }
+            return Err(e);
+        }
         Ok(())
     } else {
         Err(anyhow!("Failed to start {SERVICE_DISPLAY_NAME}"))

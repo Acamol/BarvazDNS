@@ -108,11 +108,15 @@ pub enum Command {
     CheckUpdate,
     /// Deletes all log files.
     ClearLogs,
+    /// Dynamically changes the service log level.
     #[clap(hide = true)]
     Debug {
         #[arg(value_enum)]
         level: DebugLevelOption,
     },
+    /// Displays a system tray icon while the service is running.
+    #[clap(hide = true)]
+    Tray,
 }
 
 #[derive(Parser, Debug)]

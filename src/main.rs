@@ -58,6 +58,7 @@ mod client;
 mod common;
 mod service;
 mod service_manager;
+mod tray;
 
 use crate::arg_parser::*;
 use anyhow::Result;
@@ -112,6 +113,7 @@ async fn main() -> Result<()> {
         Command::Status => client::get_last_status().await?,
         Command::CheckUpdate => client::check_update().await,
         Command::ClearLogs => client::clear_logs()?,
+        Command::Tray => tray::run()?,
     }
 
     Ok(())

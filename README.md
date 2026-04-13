@@ -8,6 +8,7 @@ BarvazDNS is a Windows application designed to automatically update your DuckDNS
 * **Single Executable:** All functionality, including service management and configuration, is contained within a single executable.
 * **Command-Line Interface (CLI):** Provides extensive control over the service and configuration.
 * **Windows Service:** Runs in the background for continuous, automated updates.
+* **System Tray Icon:** Displays a tray icon while the service is running for at-a-glance status.
 * **Human-Readable Interval:** Supports intervals in hours, minutes, and days (e.g., `5h`, `30m`, `1d`).
 * **TOML Configuration:** Uses a TOML configuration file (`%ProgramData%\BarvazDNS\config.toml`) for easy setup and modification.
 * **Logging:** Logs are stored in `%ProgramData%\BarvazDNS\`.
