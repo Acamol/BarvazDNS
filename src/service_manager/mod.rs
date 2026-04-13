@@ -66,6 +66,10 @@ fn service_is_installed() -> Result<bool> {
 }
 
 fn spawn_tray() -> Result<()> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+    const DETACHED_PROCESS: u32 = 0x0000_0008;
+
     let exe =
         std::env::current_exe().map_err(|e| anyhow!("Failed to determine executable path: {e}"))?;
     Command::new(exe)
@@ -73,6 +77,7 @@ fn spawn_tray() -> Result<()> {
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
+        .creation_flags(CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS)
         .spawn()
         .map_err(|e| anyhow!("Failed to spawn tray icon process: {e}"))?;
     Ok(())

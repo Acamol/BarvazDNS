@@ -7,7 +7,7 @@ edition = "2024"
 anyhow = "1.0"
 tokio = { version = "1", features = ["full"] }
 windows-service = "0.8.0"
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Security", "Win32_Security_Authorization", "Win32_System_LibraryLoader", "Win32_System_SystemInformation", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Security", "Win32_Security_Authorization", "Win32_System_Console", "Win32_System_LibraryLoader", "Win32_System_SystemInformation", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 log = "0.4"
 flexi_logger = "0.27"
 clap = { version = "4.5", features = ["derive"] }

@@ -124,6 +124,10 @@ pub enum Command {
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
+
+    /// Internal flag set when the process re-launches itself elevated.
+    #[arg(long, hide = true, global = true)]
+    pub elevated: bool,
 }
 
 fn parse_humantime_duration(s: &str) -> Result<Duration, String> {
