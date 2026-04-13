@@ -126,3 +126,49 @@ fn parse_humantime_duration(s: &str) -> Result<Duration, String> {
         Ok(duration)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_valid_durations() {
+        assert_eq!(
+            parse_humantime_duration("10s").unwrap(),
+            Duration::from_secs(10)
+        );
+        assert_eq!(
+            parse_humantime_duration("1m").unwrap(),
+            Duration::from_secs(60)
+        );
+        assert_eq!(
+            parse_humantime_duration("1h 30m").unwrap(),
+            Duration::from_secs(5400)
+        );
+        assert_eq!(
+            parse_humantime_duration("2h").unwrap(),
+            Duration::from_secs(7200)
+        );
+    }
+
+    #[test]
+    fn parse_exact_minimum() {
+        assert_eq!(
+            parse_humantime_duration("5s").unwrap(),
+            common::consts::MINIMAL_INTERVAL
+        );
+    }
+
+    #[test]
+    fn parse_below_minimum_is_rejected() {
+        assert!(parse_humantime_duration("4s").is_err());
+        assert!(parse_humantime_duration("1s").is_err());
+    }
+
+    #[test]
+    fn parse_invalid_format_is_rejected() {
+        assert!(parse_humantime_duration("").is_err());
+        assert!(parse_humantime_duration("abc").is_err());
+        assert!(parse_humantime_duration("-5s").is_err());
+    }
+}

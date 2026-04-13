@@ -117,3 +117,44 @@ pub async fn update(config: &Config) -> Result<()> {
         Err(e) => Err(anyhow!("Failed to update DuckDNS: {e}")),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::{Ipv4Addr, Ipv6Addr};
+
+    #[test]
+    fn build_update_url_ipv4_only() {
+        let url = build_update_url("home", "tok123", Ipv4Addr::new(1, 2, 3, 4), None);
+        assert_eq!(
+            url,
+            "https://www.duckdns.org/update?domains=home&token=tok123&ip=1.2.3.4"
+        );
+    }
+
+    #[test]
+    fn build_update_url_with_ipv6() {
+        let url = build_update_url(
+            "home",
+            "tok123",
+            Ipv4Addr::new(1, 2, 3, 4),
+            Some(Ipv6Addr::LOCALHOST),
+        );
+        assert!(url.contains("&ipv6=::1"));
+    }
+
+    #[test]
+    fn build_update_url_multiple_domains() {
+        let url = build_update_url("a,b,c", "tok", Ipv4Addr::new(10, 0, 0, 1), None);
+        assert!(url.contains("domains=a,b,c"));
+    }
+
+    #[test]
+    fn build_clear_url_format() {
+        let url = build_clear_url("home", "tok123");
+        assert_eq!(
+            url,
+            "https://www.duckdns.org/update?domains=home&token=tok123&clear=true"
+        );
+    }
+}

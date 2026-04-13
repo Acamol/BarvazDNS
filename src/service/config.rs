@@ -64,3 +64,46 @@ pub fn read() -> Result<Config> {
     // there is no config file, let's create it
     install_config_file(&config_dir_path)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    use crate::common::config::{ServiceConfig, Token};
+    use std::collections::HashSet;
+
+    fn make_config(interval_secs: u64) -> Config {
+        Config {
+            service: ServiceConfig {
+                token: Some(Token::new("test".to_string())),
+                domain: HashSet::new(),
+                interval: Duration::from_secs(interval_secs),
+                ipv6: None,
+                clear_ip_addresses: false,
+            },
+            client: None,
+        }
+    }
+
+    #[test]
+    fn clamp_interval_below_minimum() {
+        let mut config = make_config(1);
+        clamp_interval(&mut config);
+        assert_eq!(config.service.interval, common::consts::MINIMAL_INTERVAL);
+    }
+
+    #[test]
+    fn clamp_interval_at_minimum() {
+        let mut config = make_config(5);
+        clamp_interval(&mut config);
+        assert_eq!(config.service.interval, Duration::from_secs(5));
+    }
+
+    #[test]
+    fn clamp_interval_above_minimum() {
+        let mut config = make_config(3600);
+        clamp_interval(&mut config);
+        assert_eq!(config.service.interval, Duration::from_secs(3600));
+    }
+}

@@ -489,3 +489,113 @@ fn run_service(context: ServiceContext, shutdown_rx: mpsc::Receiver<()>) -> Resu
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn valid_domains() {
+        assert!(is_valid_domain("mydomain"));
+        assert!(is_valid_domain("test123"));
+        assert!(is_valid_domain("my-domain"));
+        assert!(is_valid_domain("a"));
+        assert!(is_valid_domain("a-b-c"));
+    }
+
+    #[test]
+    fn valid_domain_max_length() {
+        let domain = "a".repeat(63);
+        assert!(is_valid_domain(&domain));
+    }
+
+    #[test]
+    fn empty_domain_is_invalid() {
+        assert!(!is_valid_domain(""));
+    }
+
+    #[test]
+    fn domain_exceeding_max_length_is_invalid() {
+        let domain = "a".repeat(64);
+        assert!(!is_valid_domain(&domain));
+    }
+
+    #[test]
+    fn domain_starting_with_hyphen_is_invalid() {
+        assert!(!is_valid_domain("-domain"));
+    }
+
+    #[test]
+    fn domain_ending_with_hyphen_is_invalid() {
+        assert!(!is_valid_domain("domain-"));
+    }
+
+    #[test]
+    fn domain_with_special_chars_is_invalid() {
+        assert!(!is_valid_domain("my.domain"));
+        assert!(!is_valid_domain("my domain"));
+        assert!(!is_valid_domain("my@domain"));
+        assert!(!is_valid_domain("my$domain"));
+        assert!(!is_valid_domain("dom&ain"));
+    }
+
+    #[test]
+    fn domain_with_url_injection_is_invalid() {
+        assert!(!is_valid_domain("test&token=stolen"));
+        assert!(!is_valid_domain("test?token=stolen"));
+    }
+
+    #[test]
+    fn validate_interval_at_minimum() {
+        assert!(validate_interval(&common::consts::MINIMAL_INTERVAL).is_ok());
+    }
+
+    #[test]
+    fn validate_interval_above_minimum() {
+        assert!(validate_interval(&Duration::from_secs(3600)).is_ok());
+    }
+
+    #[test]
+    fn validate_interval_below_minimum() {
+        assert!(validate_interval(&Duration::from_secs(1)).is_err());
+    }
+
+    #[test]
+    fn validate_add_domain_success() {
+        let existing = HashSet::new();
+        assert!(validate_add_domain("myhost", &existing).is_ok());
+    }
+
+    #[test]
+    fn validate_add_domain_invalid_name() {
+        let existing = HashSet::new();
+        assert!(validate_add_domain("-bad", &existing).is_err());
+    }
+
+    #[test]
+    fn validate_add_domain_duplicate() {
+        let existing: HashSet<String> = ["myhost".to_string()].into();
+        assert!(validate_add_domain("myhost", &existing).is_err());
+    }
+
+    #[test]
+    fn validate_add_domain_at_limit() {
+        let existing: HashSet<String> = (0..common::consts::MAX_DOMAIN_COUNT)
+            .map(|i| format!("host{i}"))
+            .collect();
+        assert!(validate_add_domain("onemore", &existing).is_err());
+    }
+
+    #[test]
+    fn validate_remove_domain_exists() {
+        let existing: HashSet<String> = ["myhost".to_string()].into();
+        assert!(validate_remove_domain("myhost", &existing).is_ok());
+    }
+
+    #[test]
+    fn validate_remove_domain_not_found() {
+        let existing = HashSet::new();
+        assert!(validate_remove_domain("missing", &existing).is_err());
+    }
+}

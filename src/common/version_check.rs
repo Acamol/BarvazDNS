@@ -36,11 +36,65 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_tag_name() {
+    fn parse_tag_name_with_spaces() {
         let json = r#"{"tag_name": "v1.2.0", "name": "Release"}"#;
-        assert_eq!(parse_tag_name(json), Some("v1.2.0"));
+        assert_eq!(parse_tag_name(json), Some("v1.2.0".to_string()));
+    }
 
+    #[test]
+    fn parse_tag_name_compact() {
         let json = r#"{"tag_name":"v1.0.0"}"#;
-        assert_eq!(parse_tag_name(json), Some("v1.0.0"));
+        assert_eq!(parse_tag_name(json), Some("v1.0.0".to_string()));
+    }
+
+    #[test]
+    fn parse_tag_name_missing_field() {
+        assert_eq!(parse_tag_name(r#"{"name": "Release"}"#), None);
+    }
+
+    #[test]
+    fn parse_tag_name_empty_json() {
+        assert_eq!(parse_tag_name("{}"), None);
+    }
+
+    #[test]
+    fn newer_tag_returns_some_when_newer() {
+        let current: semver::Version = "1.0.0".parse().unwrap();
+        let json = r#"{"tag_name": "v2.0.0"}"#;
+        assert_eq!(newer_tag(json, &current), Some("v2.0.0".to_string()));
+    }
+
+    #[test]
+    fn newer_tag_returns_none_when_same() {
+        let current: semver::Version = "1.0.0".parse().unwrap();
+        let json = r#"{"tag_name": "v1.0.0"}"#;
+        assert_eq!(newer_tag(json, &current), None);
+    }
+
+    #[test]
+    fn newer_tag_returns_none_when_older() {
+        let current: semver::Version = "2.0.0".parse().unwrap();
+        let json = r#"{"tag_name": "v1.0.0"}"#;
+        assert_eq!(newer_tag(json, &current), None);
+    }
+
+    #[test]
+    fn newer_tag_without_v_prefix() {
+        let current: semver::Version = "1.0.0".parse().unwrap();
+        let json = r#"{"tag_name": "2.0.0"}"#;
+        assert_eq!(newer_tag(json, &current), Some("2.0.0".to_string()));
+    }
+
+    #[test]
+    fn newer_tag_with_invalid_version() {
+        let current: semver::Version = "1.0.0".parse().unwrap();
+        let json = r#"{"tag_name": "not-a-version"}"#;
+        assert_eq!(newer_tag(json, &current), None);
+    }
+
+    #[test]
+    fn newer_tag_with_missing_tag() {
+        let current: semver::Version = "1.0.0".parse().unwrap();
+        assert_eq!(newer_tag("{}", &current), None);
     }
 }
