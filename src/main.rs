@@ -61,7 +61,7 @@ mod service_manager;
 
 use crate::arg_parser::*;
 use anyhow::{Result, anyhow};
-use clap::{CommandFactory, Parser};
+use clap::Parser;
 use std::process::exit;
 use windows_sys::Win32::{
     Foundation::{CloseHandle, HANDLE},
@@ -104,22 +104,6 @@ fn handle_service_result(result: Result<()>) {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // check if we are in a start service context
-    let num_args = std::env::args_os().count();
-    if num_args == 1 {
-        match service::service_dispatcher() {
-            Err(s) if s.to_string().contains("code: 1063") => {
-                Cli::command().print_help()?;
-            }
-            Err(e) => {
-                eprintln!("Service error: {e}");
-            }
-            Ok(_) => {}
-        }
-
-        return Ok(());
-    }
-
     if !is_admin() {
         return Err(anyhow!("This program requires administrator privileges."));
     }
@@ -133,6 +117,13 @@ async fn main() -> Result<()> {
         Command::Service(ServiceCommands {
             command: ServiceSubcommands::Uninstall,
         }) => handle_service_result(service_manager::uninstall_service()),
+        Command::Service(ServiceCommands {
+            command: ServiceSubcommands::RunAsService,
+        }) => {
+            if let Err(e) = service::service_dispatcher() {
+                eprintln!("Service error: {e}");
+            }
+        }
         Command::Service(ServiceCommands {
             command: ServiceSubcommands::Start,
         }) => handle_service_result(service_manager::start_service()),

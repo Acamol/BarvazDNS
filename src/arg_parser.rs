@@ -22,6 +22,12 @@ pub enum ServiceSubcommands {
     Stop,
     /// Retrieves the service version.
     Version,
+    /// Internal entry point used by the Windows Service Control Manager (SCM).
+    /// This is not intended to be invoked directly by users.
+    /// It is automatically passed as a launch argument when the service is installed,
+    /// so that the SCM starts the process with `BarvazDNS.exe service run-as-service`.
+    #[clap(hide = true)]
+    RunAsService,
 }
 
 #[derive(Args, Debug)]

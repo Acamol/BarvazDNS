@@ -112,7 +112,7 @@ pub fn install_service(args: InstallArgs) -> Result<()> {
         },
         error_control: ServiceErrorControl::Normal,
         executable_path: service_binary_path,
-        launch_arguments: vec![],
+        launch_arguments: vec![OsString::from("service"), OsString::from("run-as-service")],
         dependencies: vec![],
         account_name: None,
         account_password: None,
