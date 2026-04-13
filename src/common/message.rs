@@ -42,9 +42,9 @@ impl Request {
         let encoded = encode(&service_request)?;
         client.write_all(&encoded).await?;
 
-        let mut buf = vec![0; super::consts::PIPE_BUFFER_SIZE];
-        let n = client.read(&mut buf).await?;
-        decode(&buf[..n])
+        let mut buf = Vec::new();
+        client.read_to_end(&mut buf).await?;
+        decode(&buf)
     }
 }
 

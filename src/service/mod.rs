@@ -256,7 +256,7 @@ async fn handle_message(
     context: &mut ServiceContext,
     update_tx: &tokio::sync::mpsc::Sender<Config>,
 ) -> Result<Response> {
-    log::info!("Received: {:?}", msg);
+    log::debug!("Received: {:?}", msg);
 
     let res = match msg {
         Request::Interval(interval) => {

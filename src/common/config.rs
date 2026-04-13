@@ -44,7 +44,7 @@ pub struct ServiceConfig {
     pub ipv6: Option<bool>,
     #[serde(default = "default_log_level")]
     pub log_level: String,
-    #[serde(skip_serializing, default)]
+    #[serde(skip, default)]
     pub clear_ip_addresses: bool,
 }
 
