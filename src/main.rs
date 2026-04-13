@@ -81,7 +81,7 @@ fn elevate_self() -> ! {
     let file = wide(&exe.to_string_lossy());
     let params = wide(&args_str);
 
-    unsafe {
+    let result = unsafe {
         windows_sys::Win32::UI::Shell::ShellExecuteW(
             std::ptr::null_mut(),
             verb.as_ptr(),
@@ -89,7 +89,19 @@ fn elevate_self() -> ! {
             params.as_ptr(),
             std::ptr::null(),
             windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
+        )
+    };
+
+    // ShellExecuteW returns an HINSTANCE; values <= 32 indicate an error.
+    if (result as isize) <= 32 {
+        eprintln!(
+            "Failed to request administrator privileges (error code {}).\n\
+             If you downloaded this executable from the internet, Windows may be\n\
+             blocking it. Right-click the file → Properties → check \"Unblock\" → OK,\n\
+             then try again.",
+            result as isize
         );
+        exit(1);
     }
 
     exit(0);

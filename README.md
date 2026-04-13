@@ -27,6 +27,7 @@ BarvazDNS is a Windows application designed to automatically update your DuckDNS
 **Option 1: Pre-built Executable**
 
 1.  **Download:** Download the latest release from the [Releases](https://github.com/Acamol/BarvazDNS/releases/) page.
+    > **Note:** When running from a non-elevated prompt, Windows may block the app from requesting administrator privileges if the executable was downloaded from the internet. If this happens, right-click the file → Properties → check **Unblock** → OK. This is standard Windows behavior for unsigned applications. Alternatively, you can run the app from an elevated prompt directly.
 2.  **Configuration:**
     * The configuration file `config.toml` is automatically created in `%ProgramData%\BarvazDNS\` on the first run.
     * You can also manually create or modify the `config.toml` file.
