@@ -26,6 +26,21 @@ fn install_config_file(dir_path: &std::path::Path) -> Result<Config> {
     Ok(config)
 }
 
+fn clamp_interval(config: &mut Config) {
+    if config.service.interval < common::consts::MINIMAL_INTERVAL {
+        let min_human_time = humantime::format_duration(common::consts::MINIMAL_INTERVAL);
+        let interval_human_time = humantime::format_duration(config.service.interval);
+
+        log::info!(
+            "Interval must be at least {}, got {}, using {}",
+            min_human_time,
+            interval_human_time,
+            min_human_time
+        );
+        config.service.interval = common::consts::MINIMAL_INTERVAL;
+    }
+}
+
 pub fn read() -> Result<Config> {
     let config_dir_path = Config::get_config_directory_path()?;
 
@@ -36,22 +51,7 @@ pub fn read() -> Result<Config> {
         let config_file = fs::read_to_string(&config_file_path)?;
         return match toml::from_str::<Config>(&config_file) {
             Ok(mut config) => {
-                if config.service.interval < common::consts::MINIMAL_INTERVAL {
-                    let min_human_time =
-                        humantime::format_duration(common::consts::MINIMAL_INTERVAL);
-                    let interval_human_time = humantime::format_duration(config.service.interval);
-
-                    log::info!(
-                        "Interval must be at least {}, got {}, using {}",
-                        min_human_time,
-                        interval_human_time,
-                        min_human_time
-                    );
-                    config.service.interval = common::consts::MINIMAL_INTERVAL;
-
-                    // we can now store the new interval, but we'll allow bad configuration -
-                    // just ignore it
-                }
+                clamp_interval(&mut config);
                 // to be on the safe side, when we read from the config file,
                 // better to clear addresses in case the IPv6 configuration was changed
                 config.service.clear_ip_addresses = true;

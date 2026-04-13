@@ -16,23 +16,19 @@ pub fn check_for_update() -> Option<String> {
     }
 
     let body = response.as_str().ok()?;
-    let tag = parse_tag_name(body)?;
-    let latest: semver::Version = tag.strip_prefix('v').unwrap_or(tag).parse().ok()?;
-
-    if latest > current {
-        Some(tag.to_string())
-    } else {
-        None
-    }
+    newer_tag(body, &current)
 }
 
-fn parse_tag_name(json: &str) -> Option<&str> {
-    let marker = "\"tag_name\":";
-    let idx = json.find(marker)? + marker.len();
-    let rest = json[idx..].trim_start();
-    let rest = rest.strip_prefix('"')?;
-    let end = rest.find('"')?;
-    Some(&rest[..end])
+fn newer_tag(json: &str, current: &semver::Version) -> Option<String> {
+    let tag = parse_tag_name(json)?;
+    let latest: semver::Version = tag.strip_prefix('v').unwrap_or(&tag).parse().ok()?;
+
+    if latest > *current { Some(tag) } else { None }
+}
+
+fn parse_tag_name(json: &str) -> Option<String> {
+    let parsed: serde_json::Value = serde_json::from_str(json).ok()?;
+    parsed["tag_name"].as_str().map(String::from)
 }
 
 #[cfg(test)]

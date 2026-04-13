@@ -191,6 +191,44 @@ fn is_valid_domain(domain: &str) -> bool {
         && !domain.ends_with('-')
 }
 
+fn validate_interval(interval: &Duration) -> Result<()> {
+    if *interval < common::consts::MINIMAL_INTERVAL {
+        Err(anyhow!(
+            "Got interval of {}, minimal interval is {}",
+            humantime::format_duration(*interval),
+            humantime::format_duration(common::consts::MINIMAL_INTERVAL)
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn validate_add_domain(domain: &str, existing: &std::collections::HashSet<String>) -> Result<()> {
+    if !is_valid_domain(domain) {
+        Err(anyhow!("Invalid domain name: {domain}"))
+    } else if existing.len() >= common::consts::MAX_DOMAIN_COUNT {
+        Err(anyhow!(
+            "The number of domains to update is limited to {}",
+            common::consts::MAX_DOMAIN_COUNT
+        ))
+    } else if existing.contains(domain) {
+        Err(anyhow!("Domain {domain} already exists"))
+    } else {
+        Ok(())
+    }
+}
+
+fn validate_remove_domain(
+    domain: &str,
+    existing: &std::collections::HashSet<String>,
+) -> Result<()> {
+    if existing.contains(domain) {
+        Ok(())
+    } else {
+        Err(anyhow!("Domain {domain} does not exist"))
+    }
+}
+
 async fn handle_message(
     msg: &Request,
     context: &mut ServiceContext,
@@ -200,37 +238,19 @@ async fn handle_message(
 
     let res = match msg {
         Request::Interval(interval) => {
-            if *interval < common::consts::MINIMAL_INTERVAL {
-                Err(anyhow!(
-                    "Got interval of {}, minimal interval is {}",
-                    humantime::format_duration(*interval),
-                    humantime::format_duration(common::consts::MINIMAL_INTERVAL)
-                ))
-            } else {
-                context.config.service.interval = *interval;
-                Ok(Response::Ok)
-            }
+            validate_interval(interval)?;
+            context.config.service.interval = *interval;
+            Ok(Response::Ok)
         }
         Request::AddDomain(domain) => {
-            if !is_valid_domain(domain) {
-                Err(anyhow!("Invalid domain name: {domain}"))
-            } else if context.config.service.domain.len() >= common::consts::MAX_DOMAIN_COUNT {
-                Err(anyhow!(
-                    "The number of domains to update is limited to {}",
-                    common::consts::MAX_DOMAIN_COUNT
-                ))
-            } else if context.config.service.domain.insert(domain.clone()) {
-                Ok(Response::Ok)
-            } else {
-                Err(anyhow!("Domain {domain} already exists"))
-            }
+            validate_add_domain(domain, &context.config.service.domain)?;
+            context.config.service.domain.insert(domain.clone());
+            Ok(Response::Ok)
         }
         Request::RemoveDomain(domain) => {
-            if context.config.service.domain.remove(domain) {
-                Ok(Response::Ok)
-            } else {
-                Err(anyhow!("Domain {domain} does not exist"))
-            }
+            validate_remove_domain(domain, &context.config.service.domain)?;
+            context.config.service.domain.remove(domain);
+            Ok(Response::Ok)
         }
         Request::Token(token) => {
             context.config.service.token.replace(token.clone());
