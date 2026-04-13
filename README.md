@@ -8,9 +8,8 @@ BarvazDNS is a Windows application designed to automatically update your DuckDNS
 * **Single Executable:** All functionality, including service management and configuration, is contained within a single executable.
 * **Command-Line Interface (CLI):** Provides extensive control over the service and configuration.
 * **Windows Service:** Runs in the background for continuous, automated updates.
-* **Human-Readable Interval:** Supports intervals in hours, minutes, and days and so on (e.g., `5h`, `30m`, `1d`).
-* **TOML Configuration:** Uses a TOML configuration file for easy setup and modification.
-* **Configuration:** Configuration file located in `%ProgramData%\BarvazDNS\config.toml`.
+* **Human-Readable Interval:** Supports intervals in hours, minutes, and days (e.g., `5h`, `30m`, `1d`).
+* **TOML Configuration:** Uses a TOML configuration file (`%ProgramData%\BarvazDNS\config.toml`) for easy setup and modification.
 * **Logging:** Logs are stored in `%ProgramData%\BarvazDNS\`.
 * **IPv6 Support:** Option to enable or disable IPv6 updates.
 * **Open Source:** Feel free to modify, contribute, and distribute.
@@ -19,11 +18,8 @@ BarvazDNS is a Windows application designed to automatically update your DuckDNS
 
 ### Prerequisites
 
-* A DuckDNS account and domain(s).
-* Windows operating system (doh).
-* **Administrator privileges are required to install and manage the Windows service.**
-* **For building from source:**
-    * Windows SDK installed and added to your system's PATH environment variable.
+* Windows operating system.
+* Administrator privileges are required to install and manage the Windows service.
 
 ### Installation
 
@@ -41,12 +37,9 @@ BarvazDNS is a Windows application designed to automatically update your DuckDNS
     domain = ["yoursubdomain", "anothersubdomain"]
     interval = "5h"
     ipv6 = false
-
-    [client]
-    # Currently not used
     ```
 
-4.  **Windows Service Installation:**
+3.  **Windows Service Installation:**
     * **Open a command prompt or PowerShell as administrator.**
     * Navigate to the directory containing `BarvazDNS`.
     * Run `BarvazDNS service install` to install the service.
@@ -56,29 +49,29 @@ BarvazDNS is a Windows application designed to automatically update your DuckDNS
 
 **Option 2: Building from Source**
 
+Requires the Rust toolchain and Windows SDK installed and added to your system's PATH.
+
 1.  **Clone the Repository:** `git clone https://github.com/acamol/BarvazDNS.git`
 2.  **Navigate to the Directory:** `cd BarvazDNS`
 3.  **Build the Executable:** `cargo build --release`
-4.  **The executable will be located in `target/release/BarvazDNS.exe`**
-5.  **Follow the configuration and service installation steps from Option 1.**
+    The executable will be located in `target/release/BarvazDNS.exe`.
+4.  **Follow the configuration and service installation steps from Option 1.**
 
 ### Command-Line Usage
 
-BarvazDNS provides a comprehensive command-line interface for managing the service and configuration. **Many of these commands require administrator privileges.**
+BarvazDNS provides a comprehensive command-line interface for managing the service and configuration.
 
 * `BarvazDNS`: Displays general help and available commands.
-* `BarvazDNS domain add "yourdomain"`: Adds a subdomain.
-* `BarvazDNS domain remove "yourdomain"`: Removes a subdomain.
-* `BarvazDNS token "your_token"`: Sets the DuckDNS token.
-* `BarvazDNS interval "5h"`: Sets the update interval.
-* `BarvazDNS ipv6 enable`: Enables IPv6 updates.
-* `BarvazDNS ipv6 disable`: Disables IPv6 updates.
-* `BarvazDNS update`: Forces an immediate update.
+* `BarvazDNS token "<token>"`: Sets the DuckDNS token.
+* `BarvazDNS domain <add|remove> "<domain>"`: Adds or removes a subdomain.
+* `BarvazDNS interval "<duration>"`: Sets the update interval (e.g., `5h`, `30m`, `1d`).
+* `BarvazDNS ipv6 <enable|disable>`: Enables or disables IPv6 updates.
 * `BarvazDNS config`: Displays the current configuration.
+* `BarvazDNS update`: Forces an immediate update.
 * `BarvazDNS status`: Displays the last update attempt status.
+* `BarvazDNS check-update`: Checks if a newer version is available.
 * `BarvazDNS service`: Service related commands.
     * `BarvazDNS service install`: Installs the service.
-    * `BarvazDNS service install --no-startup` Installs the service without start on startup.
     * `BarvazDNS service uninstall`: Uninstalls the service.
     * `BarvazDNS service start`: Starts the service.
     * `BarvazDNS service stop`: Stops the service.
@@ -86,7 +79,7 @@ BarvazDNS provides a comprehensive command-line interface for managing the servi
 
 ### Logging
 
-BarvazDNS logs its activity to `%ProgramData%\BarvazDNS\`. Check this log file for any errors or issues.
+BarvazDNS logs its activity to `%ProgramData%\BarvazDNS\`. Check the log files for any errors or issues.
 
 ### License
 
