@@ -146,6 +146,7 @@ async fn main() -> Result<()> {
         Command::Config => client::print_configuration().await?,
         Command::Status => client::get_last_status().await?,
         Command::CheckUpdate => client::check_update().await,
+        Command::ClearLogs => client::clear_logs()?,
     }
 
     Ok(())

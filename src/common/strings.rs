@@ -33,6 +33,7 @@ pub const CONFIG_FILE_NAME: &str = "config.toml";
 pub const DEFAULT_CONFIG_CONTENT: &str = r#"
 [service]
 interval = "1 day"
+log_level = "info"
 
 [client]
 "#;

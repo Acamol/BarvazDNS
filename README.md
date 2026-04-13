@@ -37,6 +37,7 @@ BarvazDNS is a Windows application designed to automatically update your DuckDNS
     domain = ["yoursubdomain", "anothersubdomain"]
     interval = "5h"
     ipv6 = false
+    log_level = "info"
     ```
 
 3.  **Windows Service Installation:**
@@ -70,6 +71,7 @@ BarvazDNS provides a comprehensive command-line interface for managing the servi
 * `BarvazDNS update`: Forces an immediate update.
 * `BarvazDNS status`: Displays the last update attempt status.
 * `BarvazDNS check-update`: Checks if a newer version is available.
+* `BarvazDNS clear-logs`: Deletes all log files.
 * `BarvazDNS service`: Service related commands.
     * `BarvazDNS service install`: Installs the service.
     * `BarvazDNS service uninstall`: Uninstalls the service.
@@ -79,7 +81,7 @@ BarvazDNS provides a comprehensive command-line interface for managing the servi
 
 ### Logging
 
-BarvazDNS logs its activity to `%ProgramData%\BarvazDNS\`. Check the log files for any errors or issues.
+BarvazDNS logs its activity to `%ProgramData%\BarvazDNS\`. The log level can be configured via the `log_level` field in `config.toml` (defaults to `info`). The `BARVAZ_LOG_LEVEL` environment variable overrides the config file setting.
 
 ### License
 

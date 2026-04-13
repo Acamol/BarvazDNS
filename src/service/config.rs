@@ -80,6 +80,7 @@ mod tests {
                 domain: HashSet::new(),
                 interval: Duration::from_secs(interval_secs),
                 ipv6: None,
+                log_level: "info".to_string(),
                 clear_ip_addresses: false,
             },
             client: None,

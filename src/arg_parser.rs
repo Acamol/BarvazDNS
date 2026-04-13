@@ -106,6 +106,8 @@ pub enum Command {
     Status,
     /// Checks if a newer version is available.
     CheckUpdate,
+    /// Deletes all log files.
+    ClearLogs,
     #[clap(hide = true)]
     Debug {
         #[arg(value_enum)]

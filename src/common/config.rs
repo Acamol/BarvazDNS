@@ -42,8 +42,14 @@ pub struct ServiceConfig {
     #[serde(with = "humantime_serde")]
     pub interval: Duration,
     pub ipv6: Option<bool>,
+    #[serde(default = "default_log_level")]
+    pub log_level: String,
     #[serde(skip_serializing, default)]
     pub clear_ip_addresses: bool,
+}
+
+fn default_log_level() -> String {
+    "info".to_string()
 }
 
 impl ServiceConfig {
@@ -169,6 +175,7 @@ mod tests {
             domain: domains.iter().map(|d| d.to_string()).collect(),
             interval: Duration::from_secs(interval_secs),
             ipv6,
+            log_level: "info".to_string(),
             clear_ip_addresses: false,
         }
     }

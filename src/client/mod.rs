@@ -236,6 +236,30 @@ fn print_update_notice(latest: &str) {
     );
 }
 
+/// Deletes all log files from the log directory.
+pub fn clear_logs() -> Result<()> {
+    let path = common::config::Config::get_config_directory_path()?;
+
+    let mut deleted = 0;
+    for entry in std::fs::read_dir(&path)? {
+        let entry = entry?;
+        let file_name = entry.file_name();
+        let name = file_name.to_string_lossy();
+        if name.starts_with(common::strings::LOG_FILE_BASENAME) && name.ends_with(".log") {
+            std::fs::remove_file(entry.path())?;
+            deleted += 1;
+        }
+    }
+
+    match deleted {
+        0 => println!("No log files found."),
+        1 => println!("Deleted 1 log file."),
+        n => println!("Deleted {n} log files."),
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

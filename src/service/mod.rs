@@ -39,14 +39,15 @@ pub fn service_dispatcher() -> Result<()> {
         .map_err(|e| anyhow!("Dispatching error: {e:#?}"))
 }
 
-fn logger_init() -> Result<LoggerHandle> {
+fn logger_init(log_level: &str) -> Result<LoggerHandle> {
     let log_formatter =
         |w: &mut dyn Write, now: &mut DeferredNow, record: &Record| -> Result<(), std::io::Error> {
             write!(
                 w,
-                "[{}] {}: {}",
+                "[{}] {} [{}]: {}",
                 now.now().format("%Y-%m-%d %H:%M:%S"),
                 record.level(),
+                record.module_path().unwrap_or("<unknown>"),
                 record.args()
             )
         };
@@ -60,11 +61,8 @@ fn logger_init() -> Result<LoggerHandle> {
         ));
     }
 
-    let level =
-        std::env::var(common::strings::ENV_VAR_LOG_LEVEL).unwrap_or_else(|_| "info".to_string());
-
-    Logger::try_with_str(&level)
-        .map_err(|e| anyhow!("Invalid log level '{level}': {e}"))?
+    Logger::try_with_str(log_level)
+        .map_err(|e| anyhow!("Invalid log level '{log_level}': {e}"))?
         .log_to_file(
             FileSpec::default()
                 .directory(path)
@@ -74,7 +72,7 @@ fn logger_init() -> Result<LoggerHandle> {
         .rotate(
             flexi_logger::Criterion::Size(common::consts::LOG_ROTATION_SIZE),
             flexi_logger::Naming::Timestamps,
-            Cleanup::KeepLogFiles(3),
+            Cleanup::KeepLogFiles(common::consts::LOG_KEEP_FILES),
         )
         .write_mode(WriteMode::Direct)
         .format_for_files(log_formatter)
@@ -145,7 +143,8 @@ fn service_main(_args: Vec<OsString>) {
 
     set_service_status(&status_handle, ServiceState::StartPending, 0).unwrap();
 
-    let logger_handle = match logger_init() {
+    // Initialize logger with default level first so early log messages are captured
+    let logger_handle = match logger_init("info") {
         Err(e) => {
             eprintln!("Failed to initialize logger: {e}");
             set_service_status(&status_handle, ServiceState::Stopped, 2).unwrap();
@@ -154,7 +153,7 @@ fn service_main(_args: Vec<OsString>) {
         Ok(handle) => handle,
     };
 
-    // also creates the app directory if it does not exist yet
+    // Read config (may emit log messages)
     let config = match config::read() {
         Ok(c) => c,
         Err(e) => {
@@ -163,6 +162,13 @@ fn service_main(_args: Vec<OsString>) {
             return;
         }
     };
+
+    // Apply the configured log level (env var overrides config)
+    let level = std::env::var(common::strings::ENV_VAR_LOG_LEVEL)
+        .unwrap_or_else(|_| config.service.log_level.clone());
+    if let Ok(spec) = LogSpecification::parse(&level) {
+        logger_handle.set_new_spec(spec);
+    }
 
     log::debug!("Service is running with the following configuration:\n{config}");
     log_config_warnings(&config);
