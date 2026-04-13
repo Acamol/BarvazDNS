@@ -10,12 +10,13 @@ use windows_sys::Win32::{
             Shell_NotifyIconW,
         },
         WindowsAndMessaging::{
-            AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DispatchMessageW,
-            GWLP_USERDATA, GetCursorPos, GetMessageW, GetWindowLongPtrW, IDI_APPLICATION,
-            LoadIconW, MF_SEPARATOR, MF_STRING, MSG, PostQuitMessage, RegisterClassW,
-            RegisterWindowMessageW, SW_HIDE, SetForegroundWindow, SetTimer, SetWindowLongPtrW,
-            ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TrackPopupMenu, TranslateMessage, WM_APP,
-            WM_COMMAND, WM_DESTROY, WM_TIMER, WNDCLASSW, WS_OVERLAPPEDWINDOW,
+            AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyWindow,
+            DispatchMessageW, GWLP_USERDATA, GetCursorPos, GetMessageW, GetWindowLongPtrW,
+            IDI_APPLICATION, LoadIconW, MF_SEPARATOR, MF_STRING, MSG, PostQuitMessage,
+            RegisterClassW, RegisterWindowMessageW, SW_HIDE, SetForegroundWindow, SetTimer,
+            SetWindowLongPtrW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TrackPopupMenu,
+            TranslateMessage, WM_APP, WM_COMMAND, WM_DESTROY, WM_TIMER, WNDCLASSW,
+            WS_OVERLAPPEDWINDOW,
         },
     },
 };
@@ -29,7 +30,7 @@ const TRAY_TIMER_ID: usize = 1;
 const WM_TRAY_ICON: u32 = WM_APP + 1;
 const IDM_FORCE_UPDATE: usize = 1001;
 const IDM_OPEN_CONFIG: usize = 1002;
-const IDM_STOP_SERVICE: usize = 1003;
+const IDM_EXIT: usize = 1003;
 
 /// Registered message ID for the "TaskbarCreated" broadcast.
 /// Explorer sends this when the taskbar is (re)created, e.g. after logon
@@ -90,12 +91,7 @@ fn show_context_menu(hwnd: HWND) {
             wide_string("Open Configuration Folder").as_ptr(),
         );
         AppendMenuW(menu, MF_SEPARATOR, 0, std::ptr::null());
-        AppendMenuW(
-            menu,
-            MF_STRING,
-            IDM_STOP_SERVICE,
-            wide_string("Stop Service").as_ptr(),
-        );
+        AppendMenuW(menu, MF_STRING, IDM_EXIT, wide_string("Exit").as_ptr());
 
         let mut pt: POINT = mem::zeroed();
         GetCursorPos(&mut pt);
@@ -127,9 +123,22 @@ fn set_tooltip_text(hwnd: HWND, text: &str) {
 
 fn handle_menu_command(hwnd: HWND, id: usize) {
     match id {
-        IDM_STOP_SERVICE => {
-            set_tooltip_text(hwnd, &format!("{SERVICE_DISPLAY_NAME} — Stopping..."));
-            let _ = service_manager::stop_service();
+        IDM_EXIT => {
+            let msg = wide_string("This will stop the BarvazDNS service.\nAre you sure?");
+            let title = wide_string(SERVICE_DISPLAY_NAME);
+            let result = unsafe {
+                windows_sys::Win32::UI::WindowsAndMessaging::MessageBoxW(
+                    hwnd,
+                    msg.as_ptr(),
+                    title.as_ptr(),
+                    windows_sys::Win32::UI::WindowsAndMessaging::MB_YESNO
+                        | windows_sys::Win32::UI::WindowsAndMessaging::MB_ICONQUESTION,
+                )
+            };
+            if result == windows_sys::Win32::UI::WindowsAndMessaging::IDYES {
+                let _ = service_manager::stop_service();
+                unsafe { DestroyWindow(hwnd) };
+            }
         }
         IDM_FORCE_UPDATE => {
             if let Ok(rt) = tokio::runtime::Runtime::new() {
