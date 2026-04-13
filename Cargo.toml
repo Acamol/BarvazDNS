@@ -20,6 +20,7 @@ toml = { version = "0.8", features = ["display"] }
 minreq = { version = "2.13", features = ["https"]}
 public-ip = "0.2"
 semver = "1.0.28"
+serde_json = "1"
 
 [build-dependencies]
 embed-resource = "3"
