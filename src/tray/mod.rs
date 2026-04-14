@@ -11,12 +11,12 @@ use windows_sys::Win32::{
             Shell_NotifyIconW,
         },
         WindowsAndMessaging::{
-            AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyWindow,
-            DispatchMessageW, GWLP_USERDATA, GetCursorPos, GetMessageW, GetWindowLongPtrW,
-            IDI_APPLICATION, LoadIconW, MF_SEPARATOR, MF_STRING, MSG, PostQuitMessage,
-            RegisterClassW, RegisterWindowMessageW, SW_HIDE, SetForegroundWindow, SetTimer,
-            SetWindowLongPtrW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TrackPopupMenu,
-            TranslateMessage, WM_APP, WM_COMMAND, WM_DESTROY, WM_TIMER, WNDCLASSW,
+            AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu,
+            DestroyWindow, DispatchMessageW, GWLP_USERDATA, GetCursorPos, GetMessageW,
+            GetWindowLongPtrW, IDI_APPLICATION, LoadIconW, MF_SEPARATOR, MF_STRING, MSG,
+            PostQuitMessage, RegisterClassW, RegisterWindowMessageW, SW_HIDE, SetForegroundWindow,
+            SetTimer, SetWindowLongPtrW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN,
+            TrackPopupMenu, TranslateMessage, WM_APP, WM_COMMAND, WM_DESTROY, WM_TIMER, WNDCLASSW,
             WS_OVERLAPPEDWINDOW,
         },
     },
@@ -133,6 +133,7 @@ fn show_context_menu(hwnd: HWND) {
             hwnd,
             std::ptr::null(),
         );
+        DestroyMenu(menu);
     }
 }
 
