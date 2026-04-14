@@ -39,13 +39,14 @@ const IDM_STOP_SERVICE: usize = 1005;
 /// Explorer sends this when the taskbar is (re)created, e.g. after logon
 /// or if explorer.exe restarts. We re-add the tray icon in response.
 static WM_TASKBAR_CREATED: OnceLock<u32> = OnceLock::new();
+static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
 
 fn wide_string(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
 fn query_last_update() -> Option<SystemTime> {
-    let rt = tokio::runtime::Runtime::new().ok()?;
+    let rt = RUNTIME.get()?;
     let response = rt.block_on(Request::GetStatus.send()).ok()?;
     match response {
         Response::Status(time) => time,
@@ -169,7 +170,7 @@ fn handle_menu_command(hwnd: HWND, id: usize) {
             let _ = service_manager::stop_service();
         }
         IDM_FORCE_UPDATE => {
-            if let Ok(rt) = tokio::runtime::Runtime::new() {
+            if let Some(rt) = RUNTIME.get() {
                 let _ = rt.block_on(Request::ForceUpdate.send());
             }
         }
@@ -249,6 +250,11 @@ unsafe extern "system" fn wnd_proc(
 }
 
 pub fn run() -> Result<()> {
+    let _ = RUNTIME.set(
+        tokio::runtime::Runtime::new()
+            .map_err(|e| anyhow!("Failed to create tokio runtime: {e}"))?,
+    );
+
     // Hide the console window — the tray is a GUI-only process.
     unsafe {
         let console = windows_sys::Win32::System::Console::GetConsoleWindow();
