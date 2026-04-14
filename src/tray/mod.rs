@@ -140,21 +140,26 @@ fn show_context_menu(hwnd: HWND) {
 fn handle_menu_command(hwnd: HWND, id: usize) {
     match id {
         IDM_EXIT => {
-            let msg = wide_string("This will stop the BarvazDNS service.\nAre you sure?");
-            let title = wide_string(SERVICE_DISPLAY_NAME);
-            let result = unsafe {
-                windows_sys::Win32::UI::WindowsAndMessaging::MessageBoxW(
-                    hwnd,
-                    msg.as_ptr(),
-                    title.as_ptr(),
-                    windows_sys::Win32::UI::WindowsAndMessaging::MB_YESNO
-                        | windows_sys::Win32::UI::WindowsAndMessaging::MB_ICONQUESTION,
-                )
-            };
-            if result == windows_sys::Win32::UI::WindowsAndMessaging::IDYES {
-                let _ = service_manager::stop_service();
-                unsafe { DestroyWindow(hwnd) };
+            if service_manager::service_is_running().unwrap_or(false) {
+                let msg = wide_string("This will stop the BarvazDNS service.\nAre you sure?");
+                let title = wide_string(SERVICE_DISPLAY_NAME);
+                let result = unsafe {
+                    windows_sys::Win32::UI::WindowsAndMessaging::MessageBoxW(
+                        hwnd,
+                        msg.as_ptr(),
+                        title.as_ptr(),
+                        windows_sys::Win32::UI::WindowsAndMessaging::MB_YESNO
+                            | windows_sys::Win32::UI::WindowsAndMessaging::MB_ICONQUESTION,
+                    )
+                };
+                if result == windows_sys::Win32::UI::WindowsAndMessaging::IDYES {
+                    let _ = service_manager::stop_service();
+                } else {
+                    // User cancelled exit, do nothing and keep the tray running
+                    return;
+                }
             }
+            unsafe { DestroyWindow(hwnd) };
         }
         IDM_START_SERVICE => {
             let _ = service_manager::start_service(false);
