@@ -174,7 +174,9 @@ pub fn install_service(args: InstallArgs) -> Result<()> {
     let service = service_manager.create_service(&service_info, ServiceAccess::CHANGE_CONFIG)?;
     service.set_description(SERVICE_DESCRIPTION)?;
 
-    if let Err(e) = register_tray_startup() {
+    if !args.no_startup
+        && let Err(e) = register_tray_startup()
+    {
         log::warn!("Failed to register tray startup: {e}");
     }
 
