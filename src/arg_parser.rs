@@ -17,7 +17,7 @@ pub enum ServiceSubcommands {
     /// Uninstalls the service.
     Uninstall,
     /// Starts the service.
-    Start,
+    Start(StartArgs),
     /// Stops the service.
     Stop,
     /// Retrieves the service version.
@@ -35,6 +35,13 @@ pub struct InstallArgs {
     /// Disables startup on boot (enabled by default)
     #[arg(long, action = clap::ArgAction::SetTrue)]
     pub no_startup: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct StartArgs {
+    /// Starts the service without the system tray icon
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    pub no_tray: bool,
 }
 
 #[derive(Subcommand, Debug)]

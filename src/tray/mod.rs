@@ -157,7 +157,7 @@ fn handle_menu_command(hwnd: HWND, id: usize) {
             }
         }
         IDM_START_SERVICE => {
-            let _ = service_manager::start_service();
+            let _ = service_manager::start_service(false);
         }
         IDM_STOP_SERVICE => {
             let _ = service_manager::stop_service();

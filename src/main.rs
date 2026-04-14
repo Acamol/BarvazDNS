@@ -179,8 +179,8 @@ async fn tokio_main(args: Cli) -> Result<()> {
             }
         }
         Command::Service(ServiceCommands {
-            command: ServiceSubcommands::Start,
-        }) => service_manager::start_service()?,
+            command: ServiceSubcommands::Start(args),
+        }) => service_manager::start_service(!args.no_tray)?,
         Command::Service(ServiceCommands {
             command: ServiceSubcommands::Stop,
         }) => service_manager::stop_service()?,

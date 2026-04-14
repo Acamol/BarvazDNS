@@ -267,7 +267,7 @@ fn prompt_delete_config_directory() {
 ///
 /// * `Ok(())` if the service started successfully.
 /// * `Err(e)` if the service failed to start or was already running.
-pub fn start_service() -> Result<()> {
+pub fn start_service(with_tray: bool) -> Result<()> {
     if !service_is_installed()? {
         loop {
             match yes_no_question(&format!(
@@ -305,7 +305,7 @@ pub fn start_service() -> Result<()> {
 
     if service_is_running()? {
         println!("{SERVICE_DISPLAY_NAME} is running.");
-        if let Err(e) = spawn_tray() {
+        if with_tray && let Err(e) = spawn_tray() {
             if let Err(stop_err) = stop_service() {
                 return Err(anyhow!(
                     "{e}. Additionally, failed to stop the service: {stop_err}"
