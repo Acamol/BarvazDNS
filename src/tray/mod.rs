@@ -67,12 +67,16 @@ fn format_tooltip() -> String {
     }
 }
 
-fn update_tooltip(nid: &mut NOTIFYICONDATAW) {
-    let tip = wide_string(&format_tooltip());
+fn set_tooltip_text(nid: &mut NOTIFYICONDATAW, text: &str) {
+    let tip = wide_string(text);
     let len = tip.len().min(nid.szTip.len());
     nid.szTip = [0; 128];
     nid.szTip[..len].copy_from_slice(&tip[..len]);
     unsafe { Shell_NotifyIconW(NIM_MODIFY, nid) };
+}
+
+fn update_tooltip(nid: &mut NOTIFYICONDATAW) {
+    set_tooltip_text(nid, &format_tooltip());
 }
 
 fn show_context_menu(hwnd: HWND) {
@@ -129,18 +133,6 @@ fn show_context_menu(hwnd: HWND) {
             hwnd,
             std::ptr::null(),
         );
-    }
-}
-
-fn set_tooltip_text(hwnd: HWND, text: &str) {
-    let ptr = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) };
-    if ptr != 0 {
-        let nid = unsafe { &mut *(ptr as *mut NOTIFYICONDATAW) };
-        let tip = wide_string(text);
-        let len = tip.len().min(nid.szTip.len());
-        nid.szTip = [0; 128];
-        nid.szTip[..len].copy_from_slice(&tip[..len]);
-        unsafe { Shell_NotifyIconW(NIM_MODIFY, nid) };
     }
 }
 
@@ -222,7 +214,7 @@ unsafe extern "system" fn wnd_proc(
                 update_tooltip(nid);
             } else {
                 set_tooltip_text(
-                    hwnd,
+                    nid,
                     &format!("{SERVICE_DISPLAY_NAME} \u{2014} service is not running"),
                 );
             }
