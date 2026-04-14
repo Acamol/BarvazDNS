@@ -31,6 +31,8 @@ const WM_TRAY_ICON: u32 = WM_APP + 1;
 const IDM_FORCE_UPDATE: usize = 1001;
 const IDM_OPEN_CONFIG: usize = 1002;
 const IDM_EXIT: usize = 1003;
+const IDM_START_SERVICE: usize = 1004;
+const IDM_STOP_SERVICE: usize = 1005;
 
 /// Registered message ID for the "TaskbarCreated" broadcast.
 /// Explorer sends this when the taskbar is (re)created, e.g. after logon
@@ -78,9 +80,12 @@ fn show_context_menu(hwnd: HWND) {
             return;
         }
 
+        let running = service_manager::service_is_running().unwrap_or(false);
+        let grayed = windows_sys::Win32::UI::WindowsAndMessaging::MF_GRAYED;
+
         AppendMenuW(
             menu,
-            MF_STRING,
+            MF_STRING | if running { 0 } else { grayed },
             IDM_FORCE_UPDATE,
             wide_string("Force Update").as_ptr(),
         );
@@ -90,6 +95,22 @@ fn show_context_menu(hwnd: HWND) {
             IDM_OPEN_CONFIG,
             wide_string("Open Configuration Folder").as_ptr(),
         );
+        AppendMenuW(menu, MF_SEPARATOR, 0, std::ptr::null());
+        if running {
+            AppendMenuW(
+                menu,
+                MF_STRING,
+                IDM_STOP_SERVICE,
+                wide_string("Stop Service").as_ptr(),
+            );
+        } else {
+            AppendMenuW(
+                menu,
+                MF_STRING,
+                IDM_START_SERVICE,
+                wide_string("Start Service").as_ptr(),
+            );
+        }
         AppendMenuW(menu, MF_SEPARATOR, 0, std::ptr::null());
         AppendMenuW(menu, MF_STRING, IDM_EXIT, wide_string("Exit").as_ptr());
 
@@ -139,6 +160,12 @@ fn handle_menu_command(hwnd: HWND, id: usize) {
                 let _ = service_manager::stop_service();
                 unsafe { DestroyWindow(hwnd) };
             }
+        }
+        IDM_START_SERVICE => {
+            let _ = service_manager::start_service();
+        }
+        IDM_STOP_SERVICE => {
+            let _ = service_manager::stop_service();
         }
         IDM_FORCE_UPDATE => {
             if let Ok(rt) = tokio::runtime::Runtime::new() {
