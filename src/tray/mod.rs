@@ -1,5 +1,6 @@
 use anyhow::{Result, anyhow};
 use std::mem;
+use std::sync::OnceLock;
 use std::time::SystemTime;
 use windows_sys::Win32::{
     Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, POINT, WPARAM},
@@ -37,7 +38,7 @@ const IDM_STOP_SERVICE: usize = 1005;
 /// Registered message ID for the "TaskbarCreated" broadcast.
 /// Explorer sends this when the taskbar is (re)created, e.g. after logon
 /// or if explorer.exe restarts. We re-add the tray icon in response.
-static mut WM_TASKBAR_CREATED: u32 = 0;
+static WM_TASKBAR_CREATED: OnceLock<u32> = OnceLock::new();
 
 fn wide_string(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
@@ -234,7 +235,7 @@ unsafe extern "system" fn wnd_proc(
         }
         _ => {
             // Re-add the tray icon when Explorer restarts or the taskbar is created.
-            if msg == unsafe { WM_TASKBAR_CREATED } && msg != 0 {
+            if WM_TASKBAR_CREATED.get() == Some(&msg) && msg != 0 {
                 let ptr = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) };
                 if ptr != 0 {
                     let nid = unsafe { &mut *(ptr as *mut NOTIFYICONDATAW) };
@@ -255,7 +256,9 @@ pub fn run() -> Result<()> {
             ShowWindow(console, SW_HIDE);
         }
 
-        WM_TASKBAR_CREATED = RegisterWindowMessageW(wide_string("TaskbarCreated").as_ptr());
+        let _ = WM_TASKBAR_CREATED.set(RegisterWindowMessageW(
+            wide_string("TaskbarCreated").as_ptr(),
+        ));
     }
 
     unsafe {
