@@ -131,6 +131,22 @@ fn wait_for_keypress() {
     }
 }
 
+async fn handle_service_command(svc: ServiceCommands) -> Result<()> {
+    match svc.command {
+        ServiceSubcommands::Install(args) => service_manager::install_service(args)?,
+        ServiceSubcommands::Uninstall => service_manager::uninstall_service()?,
+        ServiceSubcommands::RunAsService => {
+            if let Err(e) = service::service_dispatcher() {
+                eprintln!("Service error: {e}");
+            }
+        }
+        ServiceSubcommands::Start(args) => service_manager::start_service(!args.no_tray)?,
+        ServiceSubcommands::Stop => service_manager::stop_service()?,
+        ServiceSubcommands::Version => service_manager::version().await?,
+    }
+    Ok(())
+}
+
 fn main() {
     let args = Cli::parse();
 
@@ -165,42 +181,50 @@ fn main() {
 #[tokio::main]
 async fn tokio_main(args: Cli) -> Result<()> {
     match args.command {
-        Command::Service(ServiceCommands {
-            command: ServiceSubcommands::Install(args),
-        }) => service_manager::install_service(args)?,
-        Command::Service(ServiceCommands {
-            command: ServiceSubcommands::Uninstall,
-        }) => service_manager::uninstall_service()?,
-        Command::Service(ServiceCommands {
-            command: ServiceSubcommands::RunAsService,
-        }) => {
-            if let Err(e) = service::service_dispatcher() {
-                eprintln!("Service error: {e}");
-            }
+        Command::Service(svc) => handle_service_command(svc).await?,
+        Command::Interval { interval } => {
+            client::set_interval(interval).await?;
+            println!("Interval updated.");
         }
-        Command::Service(ServiceCommands {
-            command: ServiceSubcommands::Start(args),
-        }) => service_manager::start_service(!args.no_tray)?,
-        Command::Service(ServiceCommands {
-            command: ServiceSubcommands::Stop,
-        }) => service_manager::stop_service()?,
-        Command::Service(ServiceCommands {
-            command: ServiceSubcommands::Version,
-        }) => service_manager::version().await?,
-        Command::Interval { interval } => client::set_interval(interval).await?,
-        Command::Token { token } => client::set_token(token).await?,
-        Command::Domain(DomainSubCommands::Add { domain }) => client::add_domain(domain).await?,
+        Command::Token { token } => {
+            client::set_token(token).await?;
+            println!("Token updated.");
+        }
+        Command::Domain(DomainSubCommands::Add { domain }) => {
+            client::add_domain(domain.clone()).await?;
+            println!("Domain '{domain}' added.");
+        }
         Command::Domain(DomainSubCommands::Remove { domain }) => {
-            client::remove_domain(domain).await?
+            client::remove_domain(domain.clone()).await?;
+            println!("Domain '{domain}' removed.");
         }
-        Command::Ipv6(IPv6SubCommands::Enable) => client::enable_ipv6().await?,
-        Command::Ipv6(IPv6SubCommands::Disable) => client::disable_ipv6().await?,
-        Command::Update => client::force_update().await?,
-        Command::Debug { level } => client::update_debug_level(level.to_string()).await?,
+        Command::Ipv6(IPv6SubCommands::Enable) => {
+            client::enable_ipv6().await?;
+            println!("IPv6 enabled.");
+        }
+        Command::Ipv6(IPv6SubCommands::Disable) => {
+            client::disable_ipv6().await?;
+            println!("IPv6 disabled.");
+        }
+        Command::Update => {
+            client::force_update().await?;
+            println!("Update succeeded.");
+        }
+        Command::Debug { level } => {
+            client::update_debug_level(level.to_string()).await?;
+            println!("Debug level set to '{level}'.");
+        }
         Command::Config => client::print_configuration().await?,
         Command::Status => client::get_last_status().await?,
         Command::CheckUpdate => client::check_update().await,
-        Command::ClearLogs => client::clear_logs()?,
+        Command::ClearLogs => {
+            let deleted = client::clear_logs()?;
+            match deleted {
+                0 => println!("No log files found."),
+                1 => println!("Deleted 1 log file."),
+                n => println!("Deleted {n} log files."),
+            }
+        }
         Command::Tray => unreachable!(),
     }
 

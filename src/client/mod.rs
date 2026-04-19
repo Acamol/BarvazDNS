@@ -121,11 +121,7 @@ pub async fn disable_ipv6() -> Result<()> {
 /// * `Err(e)` if the update failed or communication failed.
 pub async fn force_update() -> Result<()> {
     let msg = Request::ForceUpdate;
-    msg.send().await.and_then(|res| {
-        expect_ok(res)?;
-        println!("Update succeeded.");
-        Ok(())
-    })
+    msg.send().await.and_then(expect_ok)
 }
 
 /// Updates the service's debug logging level.
@@ -237,7 +233,7 @@ fn print_update_notice(latest: &str) {
 }
 
 /// Deletes all log files from the log directory.
-pub fn clear_logs() -> Result<()> {
+pub fn clear_logs() -> Result<usize> {
     let path = common::config::Config::get_config_directory_path()?;
 
     let mut deleted = 0;
@@ -251,13 +247,7 @@ pub fn clear_logs() -> Result<()> {
         }
     }
 
-    match deleted {
-        0 => println!("No log files found."),
-        1 => println!("Deleted 1 log file."),
-        n => println!("Deleted {n} log files."),
-    }
-
-    Ok(())
+    Ok(deleted)
 }
 
 #[cfg(test)]
