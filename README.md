@@ -75,7 +75,7 @@ BarvazDNS provides a comprehensive command-line interface for managing the servi
 * `BarvazDNS check-update`: Checks if a newer version is available.
 * `BarvazDNS clear-logs`: Deletes all log files.
 * `BarvazDNS service`: Service related commands.
-    * `BarvazDNS service install`: Installs the service.
+    * `BarvazDNS service install [--no-startup]`: Installs the service. Use `--no-startup` to disable start on boot.
     * `BarvazDNS service uninstall`: Uninstalls the service.
     * `BarvazDNS service start [--no-tray]`: Starts the service. Use `--no-tray` to start without the system tray icon.
     * `BarvazDNS service stop`: Stops the service.
