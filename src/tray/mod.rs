@@ -1,7 +1,6 @@
 use anyhow::{Result, anyhow};
 use std::mem;
 use std::sync::OnceLock;
-use std::time::SystemTime;
 use windows_sys::Win32::{
     Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, POINT, WPARAM},
     System::LibraryLoader::GetModuleHandleW,
@@ -23,7 +22,7 @@ use windows_sys::Win32::{
 };
 
 use crate::common::consts::TRAY_POLL_INTERVAL_MS;
-use crate::common::message::{Request, Response};
+use crate::common::message::{Request, Response, UpdateStatus};
 use crate::common::strings::SERVICE_DISPLAY_NAME;
 use crate::service_manager;
 
@@ -34,36 +33,46 @@ const IDM_OPEN_CONFIG: usize = 1002;
 const IDM_EXIT: usize = 1003;
 const IDM_START_SERVICE: usize = 1004;
 const IDM_STOP_SERVICE: usize = 1005;
+const IDM_OPEN_DASHBOARD: usize = 1006;
 
 /// Registered message ID for the "TaskbarCreated" broadcast.
 /// Explorer sends this when the taskbar is (re)created, e.g. after logon
 /// or if explorer.exe restarts. We re-add the tray icon in response.
 static WM_TASKBAR_CREATED: OnceLock<u32> = OnceLock::new();
 static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+static WEB_ENABLED: OnceLock<bool> = OnceLock::new();
 
 fn wide_string(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
-fn query_last_update() -> Option<SystemTime> {
+fn query_status() -> Option<(UpdateStatus, Vec<String>)> {
     let rt = RUNTIME.get()?;
-    let response = rt.block_on(Request::GetStatus.send()).ok()?;
-    match response {
-        Response::Status(time) => time,
-        _ => None,
-    }
+    let status = match rt.block_on(Request::GetStatus.send()).ok()? {
+        Response::Status(s) => s,
+        _ => return None,
+    };
+    let configured = match rt.block_on(Request::GetConfig.send()).ok()? {
+        Response::Config(cfg) => cfg.domain,
+        _ => return None,
+    };
+    Some((status, configured.into_iter().collect()))
 }
 
 fn format_tooltip() -> String {
-    match query_last_update() {
-        Some(time) => {
-            let datetime: chrono::DateTime<chrono::Local> = time.into();
-            format!(
-                "{SERVICE_DISPLAY_NAME} — last update: {}",
-                datetime.format("%Y-%m-%d %H:%M:%S")
-            )
-        }
-        None => format!("{SERVICE_DISPLAY_NAME} — no updates yet"),
+    let Some((status, configured)) = query_status() else {
+        return format!("{SERVICE_DISPLAY_NAME} — no updates yet");
+    };
+    let Some((time, updated)) = status.last_success else {
+        return format!("{SERVICE_DISPLAY_NAME} — no updates yet");
+    };
+    let datetime: chrono::DateTime<chrono::Local> = time.into();
+    let ts = datetime.format("%Y-%m-%d %H:%M:%S");
+    let failed = configured.iter().filter(|d| !updated.contains(d)).count();
+    if failed > 0 {
+        format!("{SERVICE_DISPLAY_NAME} — last update: {ts} ({failed} domain(s) not updated)")
+    } else {
+        format!("{SERVICE_DISPLAY_NAME} — last update: {ts}")
     }
 }
 
@@ -88,6 +97,16 @@ fn show_context_menu(hwnd: HWND) {
 
         let running = service_manager::service_is_running().unwrap_or(false);
         let grayed = windows_sys::Win32::UI::WindowsAndMessaging::MF_GRAYED;
+
+        if WEB_ENABLED.get().copied().unwrap_or(false) {
+            AppendMenuW(
+                menu,
+                MF_STRING,
+                IDM_OPEN_DASHBOARD,
+                wide_string("Open Dashboard").as_ptr(),
+            );
+            AppendMenuW(menu, MF_SEPARATOR, 0, std::ptr::null());
+        }
 
         AppendMenuW(
             menu,
@@ -162,7 +181,7 @@ fn handle_menu_command(hwnd: HWND, id: usize) {
             unsafe { DestroyWindow(hwnd) };
         }
         IDM_START_SERVICE => {
-            let _ = service_manager::start_service(false);
+            let _ = service_manager::start_service(false, false);
         }
         IDM_STOP_SERVICE => {
             let _ = service_manager::stop_service();
@@ -170,6 +189,27 @@ fn handle_menu_command(hwnd: HWND, id: usize) {
         IDM_FORCE_UPDATE => {
             if let Some(rt) = RUNTIME.get() {
                 let _ = rt.block_on(Request::ForceUpdate.send());
+            }
+        }
+        IDM_OPEN_DASHBOARD => {
+            let port = crate::common::config::Config::get_config_file_path()
+                .ok()
+                .and_then(|p| std::fs::read_to_string(p).ok())
+                .and_then(|s| toml::from_str::<crate::common::config::Config>(&s).ok())
+                .map(|c| c.effective_dashboard_port())
+                .unwrap_or(crate::common::consts::WEB_DASHBOARD_PORT);
+            let url = format!("http://127.0.0.1:{port}");
+            let url_wide = wide_string(&url);
+            let verb = wide_string("open");
+            unsafe {
+                windows_sys::Win32::UI::Shell::ShellExecuteW(
+                    std::ptr::null_mut(),
+                    verb.as_ptr(),
+                    url_wide.as_ptr(),
+                    std::ptr::null(),
+                    std::ptr::null(),
+                    windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
+                );
             }
         }
         IDM_OPEN_CONFIG => {
@@ -247,11 +287,18 @@ unsafe extern "system" fn wnd_proc(
     }
 }
 
-pub fn run() -> Result<()> {
+pub fn run(with_web: bool) -> Result<()> {
     let _ = RUNTIME.set(
         tokio::runtime::Runtime::new()
             .map_err(|e| anyhow!("Failed to create tokio runtime: {e}"))?,
     );
+
+    let _ = WEB_ENABLED.set(with_web);
+
+    // Start the web dashboard server in the background.
+    if with_web && let Some(rt) = RUNTIME.get() {
+        rt.spawn(crate::dashboard::start());
+    }
 
     // Hide the console window — the tray is a GUI-only process.
     unsafe {

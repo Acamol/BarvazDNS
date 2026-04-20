@@ -9,6 +9,12 @@ use super::{config, strings};
 
 pub use config::Token;
 
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct UpdateStatus {
+    /// Timestamp + domains of the last successful update, if any.
+    pub last_success: Option<(SystemTime, Vec<String>)>,
+}
+
 pub fn encode<T: Serialize>(value: &T) -> Result<Vec<u8>> {
     Ok(bincode::serialize(value)?)
 }
@@ -85,7 +91,7 @@ pub enum Response {
     Ok,
     Err(String),
     Config(config::ServiceConfig),
-    Status(Option<SystemTime>),
+    Status(UpdateStatus),
     Version(String),
 }
 

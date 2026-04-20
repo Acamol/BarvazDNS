@@ -1,6 +1,7 @@
 mod arg_parser;
 mod client;
 mod common;
+mod dashboard;
 mod service;
 mod service_manager;
 mod tray;
@@ -15,7 +16,7 @@ fn is_elevated() -> bool {
 }
 
 fn requires_elevation(command: &Command) -> bool {
-    !matches!(command, Command::CheckUpdate | Command::Tray)
+    !matches!(command, Command::CheckUpdate | Command::Tray(_))
 }
 
 fn elevate_self() -> ! {
@@ -85,7 +86,9 @@ async fn handle_service_command(svc: ServiceCommands) -> Result<()> {
                 eprintln!("Service error: {e}");
             }
         }
-        ServiceSubcommands::Start(args) => service_manager::start_service(!args.no_tray)?,
+        ServiceSubcommands::Start(args) => {
+            service_manager::start_service(!args.no_tray, !args.no_web)?
+        }
         ServiceSubcommands::Stop => service_manager::stop_service()?,
         ServiceSubcommands::Version => service_manager::version().await?,
     }
@@ -95,8 +98,12 @@ async fn handle_service_command(svc: ServiceCommands) -> Result<()> {
 fn main() {
     let args = Cli::parse();
 
-    if matches!(args.command, Command::Tray) {
-        if let Err(e) = tray::run() {
+    if matches!(args.command, Command::Tray(_)) {
+        let no_web = match &args.command {
+            Command::Tray(tray_args) => tray_args.no_web,
+            _ => unreachable!(),
+        };
+        if let Err(e) = tray::run(!no_web) {
             eprintln!("{e}");
             exit(1);
         }
@@ -170,7 +177,10 @@ async fn tokio_main(args: Cli) -> Result<()> {
                 n => println!("Deleted {n} log files."),
             }
         }
-        Command::Tray => unreachable!(),
+        Command::DashboardPort { port } => {
+            client::change_dashboard_port(port)?;
+        }
+        Command::Tray(_) => unreachable!(),
     }
 
     Ok(())
