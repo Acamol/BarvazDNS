@@ -295,7 +295,10 @@ mod tests {
         let mut config = make_config();
         config.service.interval = Duration::from_secs(1);
         Config::clamp_interval(&mut config);
-        assert_eq!(config.service.interval, crate::common::consts::MINIMAL_INTERVAL);
+        assert_eq!(
+            config.service.interval,
+            crate::common::consts::MINIMAL_INTERVAL
+        );
     }
 
     #[test]

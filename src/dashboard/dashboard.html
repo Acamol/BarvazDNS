@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BarvazDNS Dashboard</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1><span class="duck">🦆</span> BarvazDNS</h1>
+    <span class="version" id="version">loading...</span>
+  </div>
+
+  <div class="status-banner warn" id="statusBanner">
+    <div class="status-dot"></div>
+    <div>
+      <div class="status-text" id="statusText"><strong>Connecting...</strong></div>
+      <div class="status-time" id="statusTime"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="detail-toggle" onclick="toggleDetail(this)">
+      <div class="card-title" style="margin-bottom:0">Configuration</div>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="detail-body open" id="configBody">
+      <div class="info-grid">
+        <div class="info-item">
+          <label>Update Interval</label>
+          <div class="value" id="interval"><span class="skeleton"></span></div>
+        </div>
+        <div class="info-item">
+          <label>IPv6</label>
+          <div class="value" id="ipv6"><span class="skeleton"></span></div>
+        </div>
+        <div class="info-item">
+          <label>Token</label>
+          <div class="value" id="token"><span class="skeleton"></span></div>
+        </div>
+        <div class="info-item">
+          <label>Domains</label>
+          <div class="value" id="domainCount"><span class="skeleton"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Domains</div>
+    <ul class="domain-list" id="domainList">
+      <li><span class="skeleton" style="width:140px;display:inline-block"></span></li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Actions</div>
+    <div class="actions">
+      <button class="btn primary" id="btnUpdate" onclick="forceUpdate()">
+        <span class="spinner"></span>
+        <span class="btn-label">&#10227; Force Update</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+<script src="/dashboard.js"></script>
+</body>
+</html>

@@ -91,7 +91,11 @@ pub async fn update(config: &Config) -> Result<()> {
                 let body = res.as_str()?;
                 match body {
                     "OK" => log::debug!("Cleared"),
-                    _ => return Err(anyhow!("Failed to clear. Bad response")),
+                    _ => {
+                        return Err(anyhow!(
+                            "Failed to clear IP addresses: DuckDNS responded with '{body}'"
+                        ));
+                    }
                 }
                 log::debug!("Clear sent. Response: {res:?}");
             }
@@ -111,7 +115,7 @@ pub async fn update(config: &Config) -> Result<()> {
             log::debug!("Update sent. Response: {body}");
             match body {
                 "OK" => Ok(()),
-                _ => Err(anyhow!("Bad response")),
+                _ => Err(anyhow!("DuckDNS responded with '{body}'")),
             }
         }
         Err(e) => Err(anyhow!("Failed to update DuckDNS: {e}")),
