@@ -6,7 +6,7 @@ use windows_service::{
 };
 use windows_sys::Win32::Foundation::ERROR_SERVICE_DOES_NOT_EXIST;
 
-use std::{ffi::OsString, io::Write};
+use std::ffi::OsString;
 use std::{
     process::Command,
     thread::sleep,
@@ -19,28 +19,10 @@ use crate::{
         self,
         config::Config,
         message::{Request, Response},
+        prompt::{Answer, yes_no_question},
         strings::{SERVICE_DESCRIPTION, SERVICE_DISPLAY_NAME, SERVICE_NAME, VERSION},
     },
 };
-
-enum Answer {
-    No,
-    Yes,
-}
-
-fn yes_no_question(question: &str) -> Result<Answer> {
-    print!("{question} [Yes/No] ");
-    std::io::stdout().flush()?;
-
-    let mut input = String::new();
-    std::io::stdin().read_line(&mut input)?;
-
-    match input.trim().to_lowercase().as_str() {
-        "yes" | "y" => Ok(Answer::Yes),
-        "no" | "n" => Ok(Answer::No),
-        _ => Err(anyhow!("Please enter Yes or No")),
-    }
-}
 
 pub fn service_is_running() -> Result<bool> {
     let manager_access = ServiceManagerAccess::CONNECT;
@@ -65,16 +47,19 @@ fn service_is_installed() -> Result<bool> {
         .is_ok())
 }
 
-fn spawn_tray() -> Result<()> {
+fn spawn_tray(with_web: bool) -> Result<()> {
     use std::os::windows::process::CommandExt;
     const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
     const DETACHED_PROCESS: u32 = 0x0000_0008;
 
     let exe =
         std::env::current_exe().map_err(|e| anyhow!("Failed to determine executable path: {e}"))?;
-    Command::new(exe)
-        .arg("tray")
-        .stdin(std::process::Stdio::null())
+    let mut cmd = Command::new(exe);
+    cmd.arg("tray");
+    if !with_web {
+        cmd.arg("--no-web");
+    }
+    cmd.stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .creation_flags(CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS)
@@ -269,7 +254,7 @@ fn prompt_delete_config_directory() {
 ///
 /// * `Ok(())` if the service started successfully.
 /// * `Err(e)` if the service failed to start or was already running.
-pub fn start_service(with_tray: bool) -> Result<()> {
+pub fn start_service(with_tray: bool, with_web: bool) -> Result<()> {
     if !service_is_installed()? {
         loop {
             match yes_no_question(&format!(
@@ -307,7 +292,7 @@ pub fn start_service(with_tray: bool) -> Result<()> {
 
     if service_is_running()? {
         println!("{SERVICE_DISPLAY_NAME} is running.");
-        if with_tray && let Err(e) = spawn_tray() {
+        if with_tray && let Err(e) = spawn_tray(with_web) {
             if let Err(stop_err) = stop_service() {
                 return Err(anyhow!(
                     "{e}. Additionally, failed to stop the service: {stop_err}"
