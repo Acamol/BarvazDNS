@@ -27,7 +27,6 @@ use crate::common::{
     message::{self, Request, Response, ServiceRequest},
 };
 
-mod config;
 mod duckdns;
 mod named_pipe;
 use named_pipe::{NamedPipeServerWithTimeout, create_admin_pipe};
@@ -170,7 +169,7 @@ fn service_main(_args: Vec<OsString>) {
     };
 
     // Read config (may emit log messages)
-    let config = match config::read() {
+    let config = match Config::read() {
         Ok(c) => c,
         Err(e) => {
             log::error!("{e}");
@@ -284,7 +283,7 @@ async fn handle_message(
             Ok(Response::Ok)
         }
         Request::ForceUpdate => {
-            context.config = config::read()?;
+            context.config = Config::read()?;
             match duckdns::update(&context.config).await {
                 Ok(()) => {
                     *context.last_update_succeeded.lock().await = Some(SystemTime::now());

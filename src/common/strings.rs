@@ -34,8 +34,6 @@ pub const DEFAULT_CONFIG_CONTENT: &str = r#"
 [service]
 interval = "1 day"
 log_level = "info"
-
-[client]
 "#;
 
 // log
