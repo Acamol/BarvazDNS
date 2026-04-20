@@ -9,6 +9,7 @@ BarvazDNS is a Windows application designed to automatically update your DuckDNS
 * **Command-Line Interface (CLI):** Provides extensive control over the service and configuration.
 * **Windows Service:** Runs in the background for continuous, automated updates.
 * **System Tray Icon:** Displays a tray icon while the service is running for at-a-glance status.
+* **Web Dashboard:** A local read-only dashboard to view service status, configuration, and domains at a glance.
 * **Human-Readable Interval:** Supports intervals in hours, minutes, and days (e.g., `5h`, `30m`, `1d`).
 * **TOML Configuration:** Uses a TOML configuration file (`%ProgramData%\BarvazDNS\config.toml`) for easy setup and modification.
 * **Logging:** Logs are stored in `%ProgramData%\BarvazDNS\`.
@@ -27,6 +28,7 @@ BarvazDNS is a Windows application designed to automatically update your DuckDNS
 **Option 1: Pre-built Executable**
 
 1.  **Download:** Download the latest release from the [Releases](https://github.com/Acamol/BarvazDNS/releases/) page.
+    > **Note:** When running from a non-elevated prompt, Windows may block the app from requesting administrator privileges if the executable was downloaded from the internet. If this happens, right-click the file → Properties → check **Unblock** → OK. This is standard Windows behavior for unsigned applications. Alternatively, you can run the app from an elevated prompt directly.
 2.  **Configuration:**
     * The configuration file `config.toml` is automatically created in `%ProgramData%\BarvazDNS\` on the first run.
     * You can also manually create or modify the `config.toml` file.
@@ -39,6 +41,9 @@ BarvazDNS is a Windows application designed to automatically update your DuckDNS
     interval = "5h"
     ipv6 = false
     log_level = "info"
+
+    [dashboard]
+    port = 18733
     ```
 
 3.  **Windows Service Installation:**
@@ -73,12 +78,27 @@ BarvazDNS provides a comprehensive command-line interface for managing the servi
 * `BarvazDNS status`: Displays the last update attempt status.
 * `BarvazDNS check-update`: Checks if a newer version is available.
 * `BarvazDNS clear-logs`: Deletes all log files.
+* `BarvazDNS dashboard-port <port>`: Changes the dashboard port (requires service reload).
 * `BarvazDNS service`: Service related commands.
-    * `BarvazDNS service install`: Installs the service.
+    * `BarvazDNS service install [--no-startup]`: Installs the service. Use `--no-startup` to disable start on boot.
     * `BarvazDNS service uninstall`: Uninstalls the service.
-    * `BarvazDNS service start`: Starts the service.
+    * `BarvazDNS service start [--no-tray] [--no-web]`: Starts the service. Use `--no-tray` to start without the system tray icon. Use `--no-web` to disable the web dashboard.
     * `BarvazDNS service stop`: Stops the service.
     * `BarvazDNS service version`: Displays the running service version.
+
+### Web Dashboard
+
+When the service is running with the tray icon, a local web dashboard is available at `http://localhost:18733`. It provides a read-only view of the service status, configuration, and registered domains, plus a button to force an immediate DNS update.
+
+The dashboard port can be changed in `config.toml` under the `[dashboard]` section, or via the CLI:
+
+```
+BarvazDNS dashboard-port 9090
+```
+
+To disable the dashboard, start the service with the `--no-web` flag.
+
+![Dashboard screenshot](resources/dashboard-screenshot.png)
 
 ### Logging
 

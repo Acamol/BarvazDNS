@@ -24,10 +24,9 @@ use crate::common::strings::VERSION;
 use crate::common::{
     self,
     config::Config,
-    message::{self, Request, Response, ServiceRequest},
+    message::{self, Request, Response, ServiceRequest, UpdateStatus},
 };
 
-mod config;
 mod duckdns;
 mod named_pipe;
 use named_pipe::{NamedPipeServerWithTimeout, create_admin_pipe};
@@ -111,7 +110,7 @@ struct ServiceContext {
     logger_handle: LoggerHandle,
     status_handle: ServiceStatusHandle,
     config: Config,
-    last_update_succeeded: Arc<Mutex<Option<SystemTime>>>,
+    update_status: Arc<Mutex<UpdateStatus>>,
 }
 
 fn log_config_warnings(config: &Config) {
@@ -170,7 +169,7 @@ fn service_main(_args: Vec<OsString>) {
     };
 
     // Read config (may emit log messages)
-    let config = match config::read() {
+    let config = match Config::read() {
         Ok(c) => c,
         Err(e) => {
             log::error!("{e}");
@@ -193,7 +192,7 @@ fn service_main(_args: Vec<OsString>) {
         status_handle,
         logger_handle,
         config,
-        last_update_succeeded: Arc::new(Mutex::new(None)),
+        update_status: Arc::new(Mutex::new(UpdateStatus::default())),
     };
 
     if let Err(e) = run_service(context, shutdown_rx) {
@@ -284,10 +283,12 @@ async fn handle_message(
             Ok(Response::Ok)
         }
         Request::ForceUpdate => {
-            context.config = config::read()?;
+            context.config = Config::read()?;
+            let domains: Vec<String> = context.config.service.domain.iter().cloned().collect();
             match duckdns::update(&context.config).await {
                 Ok(()) => {
-                    *context.last_update_succeeded.lock().await = Some(SystemTime::now());
+                    let mut status = context.update_status.lock().await;
+                    status.last_success = Some((SystemTime::now(), domains));
                     log::info!("Force update succeeded");
                     return Ok(Response::Ok);
                 }
@@ -304,8 +305,8 @@ async fn handle_message(
             return Ok(Response::Config(context.config.service.clone()));
         }
         Request::GetStatus => {
-            let status = context.last_update_succeeded.lock().await;
-            return Ok(Response::Status(*status));
+            let status = context.update_status.lock().await;
+            return Ok(Response::Status(status.clone()));
         }
         Request::Version => {
             return Ok(Response::Version(VERSION.to_string()));
@@ -440,7 +441,7 @@ async fn service_listening_loop(
 async fn update_ip_loop(
     mut receiver: tokio::sync::mpsc::Receiver<Config>,
     initial_config: Config,
-    last_update_succeeded: Arc<Mutex<Option<SystemTime>>>,
+    update_status: Arc<Mutex<UpdateStatus>>,
 ) {
     let mut config = initial_config;
     let mut interval = tokio::time::interval(config.service.interval);
@@ -460,9 +461,11 @@ async fn update_ip_loop(
         let ready = config.service.token.is_some() && !config.service.domain.is_empty();
 
         if ready {
+            let domains: Vec<String> = config.service.domain.iter().cloned().collect();
             match duckdns::update(&config).await {
                 Ok(()) => {
-                    *last_update_succeeded.lock().await = Some(SystemTime::now());
+                    let mut status = update_status.lock().await;
+                    status.last_success = Some((SystemTime::now(), domains));
                     log::info!("Update succeeded");
                 }
                 Err(e) => log::error!("Update failed: {e}"),
@@ -486,7 +489,7 @@ fn run_service(context: ServiceContext, shutdown_rx: mpsc::Receiver<()>) -> Resu
         let update_ip_handle = tokio::spawn(update_ip_loop(
             update_rx,
             context.config.clone(),
-            context.last_update_succeeded.clone(),
+            context.update_status.clone(),
         ));
         let listening_loop_handle = tokio::spawn(service_listening_loop(context, update_tx));
         let shutdown_handle = tokio::spawn(async move {

@@ -14,6 +14,30 @@ fn expect_ok(response: Response) -> Result<()> {
     }
 }
 
+fn set_dashboard_port(port: u16) -> Result<()> {
+    let config_path = common::config::Config::get_config_file_path()?;
+    let content = std::fs::read_to_string(&config_path)?;
+    let mut config: common::config::Config = toml::from_str(&content)?;
+    let dashboard = config.dashboard.get_or_insert_with(Default::default);
+    dashboard.port = Some(port);
+    config.store()?;
+    Ok(())
+}
+
+fn get_effective_dashboard_port() -> u16 {
+    common::config::Config::get_config_file_path()
+        .ok()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|s| toml::from_str::<common::config::Config>(&s).ok())
+        .map(|c| c.effective_dashboard_port())
+        .unwrap_or(common::consts::WEB_DASHBOARD_PORT)
+}
+
+fn reload_dashboard(port: u16) {
+    let url = format!("http://127.0.0.1:{port}/api/reload");
+    let _ = minreq::post(&url).with_timeout(3).send();
+}
+
 /// Sets the DuckDNS update interval on the service.
 ///
 /// Sends a request to the service to set its update interval to the specified `duration`.
@@ -121,11 +145,7 @@ pub async fn disable_ipv6() -> Result<()> {
 /// * `Err(e)` if the update failed or communication failed.
 pub async fn force_update() -> Result<()> {
     let msg = Request::ForceUpdate;
-    msg.send().await.and_then(|res| {
-        expect_ok(res)?;
-        println!("Update succeeded.");
-        Ok(())
-    })
+    msg.send().await.and_then(expect_ok)
 }
 
 /// Updates the service's debug logging level.
@@ -143,6 +163,39 @@ pub async fn force_update() -> Result<()> {
 pub async fn update_debug_level(level: String) -> Result<()> {
     let msg = Request::DebugLevel(level);
     msg.send().await.and_then(expect_ok)
+}
+
+/// Changes the dashboard port after user confirmation.
+///
+/// Prompts the user for confirmation, updates the port in the configuration file,
+/// and sends a reload request to the running dashboard.
+///
+/// # Arguments
+///
+/// * `port`: The new port number for the dashboard.
+///
+/// # Returns
+///
+/// * `Ok(())` if the port was changed or the user cancelled.
+/// * `Err(e)` if writing the configuration failed.
+pub fn change_dashboard_port(port: u16) -> Result<()> {
+    let old_port = get_effective_dashboard_port();
+    loop {
+        match common::prompt::yes_no_question(&format!(
+            "Change the dashboard port to {port}? This will reload the dashboard."
+        )) {
+            Ok(common::prompt::Answer::Yes) => break,
+            Ok(common::prompt::Answer::No) => {
+                println!("Port change cancelled.");
+                return Ok(());
+            }
+            Err(e) => println!("{e}"),
+        }
+    }
+    set_dashboard_port(port)?;
+    reload_dashboard(old_port);
+    println!("Dashboard port set to {port}.");
+    Ok(())
 }
 
 /// Prints the service's current configuration to the console.
@@ -177,12 +230,16 @@ pub async fn print_configuration() -> Result<()> {
 pub async fn get_last_status() -> Result<()> {
     let msg = Request::GetStatus;
     match msg.send().await? {
-        Response::Status(Some(last_update_time)) => {
-            let datetime: DateTime<Local> = last_update_time.into();
-            let formatted_time = datetime.format("%Y-%m-%d %H:%M:%S");
-            println!("Last update: {formatted_time}");
+        Response::Status(status) => {
+            if let Some((time, domains)) = status.last_success {
+                let datetime: DateTime<Local> = time.into();
+                let formatted_time = datetime.format("%Y-%m-%d %H:%M:%S");
+                println!("Last successful update: {formatted_time}");
+                println!("Updated domains: {}", domains.join(", "));
+            } else {
+                println!("No successful updates yet.");
+            }
         }
-        Response::Status(None) => println!("No updates have been performed yet."),
         Response::Err(e) => return Err(anyhow!("Bad response: {e}")),
         _ => return Err(anyhow!("Failed to send request")),
     }
@@ -237,7 +294,7 @@ fn print_update_notice(latest: &str) {
 }
 
 /// Deletes all log files from the log directory.
-pub fn clear_logs() -> Result<()> {
+pub fn clear_logs() -> Result<usize> {
     let path = common::config::Config::get_config_directory_path()?;
 
     let mut deleted = 0;
@@ -251,13 +308,7 @@ pub fn clear_logs() -> Result<()> {
         }
     }
 
-    match deleted {
-        0 => println!("No log files found."),
-        1 => println!("Deleted 1 log file."),
-        n => println!("Deleted {n} log files."),
-    }
-
-    Ok(())
+    Ok(deleted)
 }
 
 #[cfg(test)]

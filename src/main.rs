@@ -1,61 +1,7 @@
-//! BarvazDNS is a Windows application designed to automatically update DuckDNS domains with your public IP address.
-//!
-//! It functions as both a command-line tool and a Windows service, providing flexibility and control.
-//!
-//! # Features
-//!
-//! * **Automatic DuckDNS Updates:** Regularly checks and updates your DuckDNS domains.
-//! * **Single Executable:** All functionality, including service management and configuration, is contained within a single executable.
-//! * **Command-Line Interface (CLI):** Provides extensive control over the service and configuration.
-//! * **Windows Service:** Runs in the background for continuous, automated updates.
-//! * **Human-Readable Interval:** Supports intervals in hours, minutes, and days (e.g., `5h`, `30m`, `1d`).
-//! * **TOML Configuration:** Uses a TOML configuration file for easy setup and modification.
-//! * **Configuration:** Located in `%ProgramData%\BarvazDNS\config.toml`.
-//! * **Logging:** Detailed logs are stored in `%ProgramData%\BarvazDNS\`.
-//! * **IPv6 Support:** Option to enable or disable IPv6 updates.
-//! * **Open Source:** Feel free to modify, contribute, and distribute.
-//!
-//! # Getting Started
-//!
-//! 1.  Download the latest release from the [Releases](https://github.com/acamol/BarvazDNS/releases) page.
-//! 2.  Extract the downloaded executable.
-//! 3.  Configure `config.toml` in `%ProgramData%\BarvazDNS\`.
-//! 4.  Install and start the Windows service (recommended):
-//!     * `BarvazDNS service install`
-//!     * `BarvazDNS service start`
-//!
-//! # Command-Line Usage
-//!
-//! * `BarvazDNS`: Displays general help and available commands.
-//! * `BarvazDNS domain add "yourdomain"`: Adds a subdomain.
-//! * `BarvazDNS domain remove "yourdomain"`: Removes a subdomain.
-//! * `BarvazDNS token "your_token"`: Sets the DuckDNS token.
-//! * `BarvazDNS interval "5h"`: Sets the update interval.
-//! * `BarvazDNS ipv6 enable`: Enables IPv6 updates.
-//! * `BarvazDNS ipv6 disable`: Disables IPv6 updates.
-//! * `BarvazDNS update`: Forces an immediate update.
-//! * `BarvazDNS config`: Displays the current configuration.
-//! * `BarvazDNS status`: Displays the last successful update time.
-//! * `BarvazDNS check-update`: Checks if a newer version is available.
-//! * `BarvazDNS service`: Service related commands.
-//!     * `BarvazDNS service install`: Installs the service.
-//!     * `BarvazDNS service install --no-startup`: Installs the service without start on startup.
-//!     * `BarvazDNS service uninstall`: Uninstalls the service.
-//!     * `BarvazDNS service start`: Starts the service.
-//!     * `BarvazDNS service stop`: Stops the service.
-//!     * `BarvazDNS service version`: Retrieves the running service version.
-//!
-//! # Logging
-//!
-//! Logs are stored in `%ProgramData%\BarvazDNS\`.
-//!
-//! # License
-//!
-//! MIT License.
-
 mod arg_parser;
 mod client;
 mod common;
+mod dashboard;
 mod service;
 mod service_manager;
 mod tray;
@@ -70,7 +16,7 @@ fn is_elevated() -> bool {
 }
 
 fn requires_elevation(command: &Command) -> bool {
-    !matches!(command, Command::CheckUpdate | Command::Tray)
+    !matches!(command, Command::CheckUpdate | Command::Tray(_))
 }
 
 fn elevate_self() -> ! {
@@ -81,7 +27,7 @@ fn elevate_self() -> ! {
     let file = wide(&exe.to_string_lossy());
     let params = wide(&args_str);
 
-    unsafe {
+    let result = unsafe {
         windows_sys::Win32::UI::Shell::ShellExecuteW(
             std::ptr::null_mut(),
             verb.as_ptr(),
@@ -89,7 +35,19 @@ fn elevate_self() -> ! {
             params.as_ptr(),
             std::ptr::null(),
             windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
+        )
+    };
+
+    // ShellExecuteW returns an HINSTANCE; values <= 32 indicate an error.
+    if (result as isize) <= 32 {
+        eprintln!(
+            "Failed to request administrator privileges (error code {}).\n\
+             If you downloaded this executable from the internet, Windows may be\n\
+             blocking it. Right-click the file → Properties → check \"Unblock\" → OK,\n\
+             then try again.",
+            result as isize
         );
+        exit(1);
     }
 
     exit(0);
@@ -119,11 +77,33 @@ fn wait_for_keypress() {
     }
 }
 
+async fn handle_service_command(svc: ServiceCommands) -> Result<()> {
+    match svc.command {
+        ServiceSubcommands::Install(args) => service_manager::install_service(args)?,
+        ServiceSubcommands::Uninstall => service_manager::uninstall_service()?,
+        ServiceSubcommands::RunAsService => {
+            if let Err(e) = service::service_dispatcher() {
+                eprintln!("Service error: {e}");
+            }
+        }
+        ServiceSubcommands::Start(args) => {
+            service_manager::start_service(!args.no_tray, !args.no_web)?
+        }
+        ServiceSubcommands::Stop => service_manager::stop_service()?,
+        ServiceSubcommands::Version => service_manager::version().await?,
+    }
+    Ok(())
+}
+
 fn main() {
     let args = Cli::parse();
 
-    if matches!(args.command, Command::Tray) {
-        if let Err(e) = tray::run() {
+    if matches!(args.command, Command::Tray(_)) {
+        let no_web = match &args.command {
+            Command::Tray(tray_args) => tray_args.no_web,
+            _ => unreachable!(),
+        };
+        if let Err(e) = tray::run(!no_web) {
             eprintln!("{e}");
             exit(1);
         }
@@ -153,43 +133,54 @@ fn main() {
 #[tokio::main]
 async fn tokio_main(args: Cli) -> Result<()> {
     match args.command {
-        Command::Service(ServiceCommands {
-            command: ServiceSubcommands::Install(args),
-        }) => service_manager::install_service(args)?,
-        Command::Service(ServiceCommands {
-            command: ServiceSubcommands::Uninstall,
-        }) => service_manager::uninstall_service()?,
-        Command::Service(ServiceCommands {
-            command: ServiceSubcommands::RunAsService,
-        }) => {
-            if let Err(e) = service::service_dispatcher() {
-                eprintln!("Service error: {e}");
-            }
+        Command::Service(svc) => handle_service_command(svc).await?,
+        Command::Interval { interval } => {
+            client::set_interval(interval).await?;
+            println!("Interval updated.");
         }
-        Command::Service(ServiceCommands {
-            command: ServiceSubcommands::Start,
-        }) => service_manager::start_service()?,
-        Command::Service(ServiceCommands {
-            command: ServiceSubcommands::Stop,
-        }) => service_manager::stop_service()?,
-        Command::Service(ServiceCommands {
-            command: ServiceSubcommands::Version,
-        }) => service_manager::version().await?,
-        Command::Interval { interval } => client::set_interval(interval).await?,
-        Command::Token { token } => client::set_token(token).await?,
-        Command::Domain(DomainSubCommands::Add { domain }) => client::add_domain(domain).await?,
+        Command::Token { token } => {
+            client::set_token(token).await?;
+            println!("Token updated.");
+        }
+        Command::Domain(DomainSubCommands::Add { domain }) => {
+            client::add_domain(domain.clone()).await?;
+            println!("Domain '{domain}' added.");
+        }
         Command::Domain(DomainSubCommands::Remove { domain }) => {
-            client::remove_domain(domain).await?
+            client::remove_domain(domain.clone()).await?;
+            println!("Domain '{domain}' removed.");
         }
-        Command::Ipv6(IPv6SubCommands::Enable) => client::enable_ipv6().await?,
-        Command::Ipv6(IPv6SubCommands::Disable) => client::disable_ipv6().await?,
-        Command::Update => client::force_update().await?,
-        Command::Debug { level } => client::update_debug_level(level.to_string()).await?,
+        Command::Ipv6(IPv6SubCommands::Enable) => {
+            client::enable_ipv6().await?;
+            println!("IPv6 enabled.");
+        }
+        Command::Ipv6(IPv6SubCommands::Disable) => {
+            client::disable_ipv6().await?;
+            println!("IPv6 disabled.");
+        }
+        Command::Update => {
+            client::force_update().await?;
+            println!("Update succeeded.");
+        }
+        Command::Debug { level } => {
+            client::update_debug_level(level.to_string()).await?;
+            println!("Debug level set to '{level}'.");
+        }
         Command::Config => client::print_configuration().await?,
         Command::Status => client::get_last_status().await?,
         Command::CheckUpdate => client::check_update().await,
-        Command::ClearLogs => client::clear_logs()?,
-        Command::Tray => unreachable!(),
+        Command::ClearLogs => {
+            let deleted = client::clear_logs()?;
+            match deleted {
+                0 => println!("No log files found."),
+                1 => println!("Deleted 1 log file."),
+                n => println!("Deleted {n} log files."),
+            }
+        }
+        Command::DashboardPort { port } => {
+            client::change_dashboard_port(port)?;
+        }
+        Command::Tray(_) => unreachable!(),
     }
 
     Ok(())

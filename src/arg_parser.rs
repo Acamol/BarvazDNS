@@ -17,7 +17,7 @@ pub enum ServiceSubcommands {
     /// Uninstalls the service.
     Uninstall,
     /// Starts the service.
-    Start,
+    Start(StartArgs),
     /// Stops the service.
     Stop,
     /// Retrieves the service version.
@@ -35,6 +35,24 @@ pub struct InstallArgs {
     /// Disables startup on boot (enabled by default)
     #[arg(long, action = clap::ArgAction::SetTrue)]
     pub no_startup: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct StartArgs {
+    /// Starts the service without the system tray icon
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    pub no_tray: bool,
+
+    /// Starts without the web dashboard
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    pub no_web: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct TrayArgs {
+    /// Starts without the web dashboard
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    pub no_web: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -108,6 +126,11 @@ pub enum Command {
     CheckUpdate,
     /// Deletes all log files.
     ClearLogs,
+    /// Sets the dashboard port.
+    DashboardPort {
+        #[arg(value_parser)]
+        port: u16,
+    },
     /// Dynamically changes the service log level.
     #[clap(hide = true)]
     Debug {
@@ -116,7 +139,7 @@ pub enum Command {
     },
     /// Internal entry point for the system tray icon process.
     #[clap(hide = true)]
-    Tray,
+    Tray(TrayArgs),
 }
 
 #[derive(Parser, Debug)]

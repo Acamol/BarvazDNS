@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 use std::mem;
-use std::time::SystemTime;
+use std::sync::OnceLock;
 use windows_sys::Win32::{
     Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, POINT, WPARAM},
     System::LibraryLoader::GetModuleHandleW,
@@ -10,18 +10,19 @@ use windows_sys::Win32::{
             Shell_NotifyIconW,
         },
         WindowsAndMessaging::{
-            AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyWindow,
-            DispatchMessageW, GWLP_USERDATA, GetCursorPos, GetMessageW, GetWindowLongPtrW,
-            IDI_APPLICATION, LoadIconW, MF_SEPARATOR, MF_STRING, MSG, PostQuitMessage,
-            RegisterClassW, SW_HIDE, SetForegroundWindow, SetTimer, SetWindowLongPtrW, ShowWindow,
-            TPM_BOTTOMALIGN, TPM_LEFTALIGN, TrackPopupMenu, TranslateMessage, WM_APP, WM_COMMAND,
-            WM_DESTROY, WM_TIMER, WNDCLASSW, WS_OVERLAPPEDWINDOW,
+            AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu,
+            DestroyWindow, DispatchMessageW, GWLP_USERDATA, GetCursorPos, GetMessageW,
+            GetWindowLongPtrW, IDI_APPLICATION, LoadIconW, MF_SEPARATOR, MF_STRING, MSG,
+            PostQuitMessage, RegisterClassW, RegisterWindowMessageW, SW_HIDE, SetForegroundWindow,
+            SetTimer, SetWindowLongPtrW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN,
+            TrackPopupMenu, TranslateMessage, WM_APP, WM_COMMAND, WM_DESTROY, WM_TIMER, WNDCLASSW,
+            WS_OVERLAPPEDWINDOW,
         },
     },
 };
 
 use crate::common::consts::TRAY_POLL_INTERVAL_MS;
-use crate::common::message::{Request, Response};
+use crate::common::message::{Request, Response, UpdateStatus};
 use crate::common::strings::SERVICE_DISPLAY_NAME;
 use crate::service_manager;
 
@@ -29,40 +30,62 @@ const TRAY_TIMER_ID: usize = 1;
 const WM_TRAY_ICON: u32 = WM_APP + 1;
 const IDM_FORCE_UPDATE: usize = 1001;
 const IDM_OPEN_CONFIG: usize = 1002;
-const IDM_STOP_SERVICE: usize = 1003;
+const IDM_EXIT: usize = 1003;
+const IDM_START_SERVICE: usize = 1004;
+const IDM_STOP_SERVICE: usize = 1005;
+const IDM_OPEN_DASHBOARD: usize = 1006;
+
+/// Registered message ID for the "TaskbarCreated" broadcast.
+/// Explorer sends this when the taskbar is (re)created, e.g. after logon
+/// or if explorer.exe restarts. We re-add the tray icon in response.
+static WM_TASKBAR_CREATED: OnceLock<u32> = OnceLock::new();
+static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+static WEB_ENABLED: OnceLock<bool> = OnceLock::new();
 
 fn wide_string(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
-fn query_last_update() -> Option<SystemTime> {
-    let rt = tokio::runtime::Runtime::new().ok()?;
-    let response = rt.block_on(Request::GetStatus.send()).ok()?;
-    match response {
-        Response::Status(time) => time,
-        _ => None,
-    }
+fn query_status() -> Option<(UpdateStatus, Vec<String>)> {
+    let rt = RUNTIME.get()?;
+    let status = match rt.block_on(Request::GetStatus.send()).ok()? {
+        Response::Status(s) => s,
+        _ => return None,
+    };
+    let configured = match rt.block_on(Request::GetConfig.send()).ok()? {
+        Response::Config(cfg) => cfg.domain,
+        _ => return None,
+    };
+    Some((status, configured.into_iter().collect()))
 }
 
 fn format_tooltip() -> String {
-    match query_last_update() {
-        Some(time) => {
-            let datetime: chrono::DateTime<chrono::Local> = time.into();
-            format!(
-                "{SERVICE_DISPLAY_NAME} — last update: {}",
-                datetime.format("%Y-%m-%d %H:%M:%S")
-            )
-        }
-        None => format!("{SERVICE_DISPLAY_NAME} — no updates yet"),
+    let Some((status, configured)) = query_status() else {
+        return format!("{SERVICE_DISPLAY_NAME} — no updates yet");
+    };
+    let Some((time, updated)) = status.last_success else {
+        return format!("{SERVICE_DISPLAY_NAME} — no updates yet");
+    };
+    let datetime: chrono::DateTime<chrono::Local> = time.into();
+    let ts = datetime.format("%Y-%m-%d %H:%M:%S");
+    let failed = configured.iter().filter(|d| !updated.contains(d)).count();
+    if failed > 0 {
+        format!("{SERVICE_DISPLAY_NAME} — last update: {ts} ({failed} domain(s) not updated)")
+    } else {
+        format!("{SERVICE_DISPLAY_NAME} — last update: {ts}")
     }
 }
 
-fn update_tooltip(nid: &mut NOTIFYICONDATAW) {
-    let tip = wide_string(&format_tooltip());
+fn set_tooltip_text(nid: &mut NOTIFYICONDATAW, text: &str) {
+    let tip = wide_string(text);
     let len = tip.len().min(nid.szTip.len());
     nid.szTip = [0; 128];
     nid.szTip[..len].copy_from_slice(&tip[..len]);
     unsafe { Shell_NotifyIconW(NIM_MODIFY, nid) };
+}
+
+fn update_tooltip(nid: &mut NOTIFYICONDATAW) {
+    set_tooltip_text(nid, &format_tooltip());
 }
 
 fn show_context_menu(hwnd: HWND) {
@@ -72,9 +95,22 @@ fn show_context_menu(hwnd: HWND) {
             return;
         }
 
+        let running = service_manager::service_is_running().unwrap_or(false);
+        let grayed = windows_sys::Win32::UI::WindowsAndMessaging::MF_GRAYED;
+
+        if WEB_ENABLED.get().copied().unwrap_or(false) {
+            AppendMenuW(
+                menu,
+                MF_STRING,
+                IDM_OPEN_DASHBOARD,
+                wide_string("Open Dashboard").as_ptr(),
+            );
+            AppendMenuW(menu, MF_SEPARATOR, 0, std::ptr::null());
+        }
+
         AppendMenuW(
             menu,
-            MF_STRING,
+            MF_STRING | if running { 0 } else { grayed },
             IDM_FORCE_UPDATE,
             wide_string("Force Update").as_ptr(),
         );
@@ -85,12 +121,23 @@ fn show_context_menu(hwnd: HWND) {
             wide_string("Open Configuration Folder").as_ptr(),
         );
         AppendMenuW(menu, MF_SEPARATOR, 0, std::ptr::null());
-        AppendMenuW(
-            menu,
-            MF_STRING,
-            IDM_STOP_SERVICE,
-            wide_string("Stop Service").as_ptr(),
-        );
+        if running {
+            AppendMenuW(
+                menu,
+                MF_STRING,
+                IDM_STOP_SERVICE,
+                wide_string("Stop Service").as_ptr(),
+            );
+        } else {
+            AppendMenuW(
+                menu,
+                MF_STRING,
+                IDM_START_SERVICE,
+                wide_string("Start Service").as_ptr(),
+            );
+        }
+        AppendMenuW(menu, MF_SEPARATOR, 0, std::ptr::null());
+        AppendMenuW(menu, MF_STRING, IDM_EXIT, wide_string("Exit").as_ptr());
 
         let mut pt: POINT = mem::zeroed();
         GetCursorPos(&mut pt);
@@ -105,30 +152,64 @@ fn show_context_menu(hwnd: HWND) {
             hwnd,
             std::ptr::null(),
         );
-    }
-}
-
-fn set_tooltip_text(hwnd: HWND, text: &str) {
-    let ptr = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) };
-    if ptr != 0 {
-        let nid = unsafe { &mut *(ptr as *mut NOTIFYICONDATAW) };
-        let tip = wide_string(text);
-        let len = tip.len().min(nid.szTip.len());
-        nid.szTip = [0; 128];
-        nid.szTip[..len].copy_from_slice(&tip[..len]);
-        unsafe { Shell_NotifyIconW(NIM_MODIFY, nid) };
+        DestroyMenu(menu);
     }
 }
 
 fn handle_menu_command(hwnd: HWND, id: usize) {
     match id {
+        IDM_EXIT => {
+            if service_manager::service_is_running().unwrap_or(false) {
+                let msg = wide_string("This will stop the BarvazDNS service.\nAre you sure?");
+                let title = wide_string(SERVICE_DISPLAY_NAME);
+                let result = unsafe {
+                    windows_sys::Win32::UI::WindowsAndMessaging::MessageBoxW(
+                        hwnd,
+                        msg.as_ptr(),
+                        title.as_ptr(),
+                        windows_sys::Win32::UI::WindowsAndMessaging::MB_YESNO
+                            | windows_sys::Win32::UI::WindowsAndMessaging::MB_ICONQUESTION,
+                    )
+                };
+                if result == windows_sys::Win32::UI::WindowsAndMessaging::IDYES {
+                    let _ = service_manager::stop_service();
+                } else {
+                    // User cancelled exit, do nothing and keep the tray running
+                    return;
+                }
+            }
+            unsafe { DestroyWindow(hwnd) };
+        }
+        IDM_START_SERVICE => {
+            let _ = service_manager::start_service(false, false);
+        }
         IDM_STOP_SERVICE => {
-            set_tooltip_text(hwnd, &format!("{SERVICE_DISPLAY_NAME} — Stopping..."));
             let _ = service_manager::stop_service();
         }
         IDM_FORCE_UPDATE => {
-            if let Ok(rt) = tokio::runtime::Runtime::new() {
+            if let Some(rt) = RUNTIME.get() {
                 let _ = rt.block_on(Request::ForceUpdate.send());
+            }
+        }
+        IDM_OPEN_DASHBOARD => {
+            let port = crate::common::config::Config::get_config_file_path()
+                .ok()
+                .and_then(|p| std::fs::read_to_string(p).ok())
+                .and_then(|s| toml::from_str::<crate::common::config::Config>(&s).ok())
+                .map(|c| c.effective_dashboard_port())
+                .unwrap_or(crate::common::consts::WEB_DASHBOARD_PORT);
+            let url = format!("http://127.0.0.1:{port}");
+            let url_wide = wide_string(&url);
+            let verb = wide_string("open");
+            unsafe {
+                windows_sys::Win32::UI::Shell::ShellExecuteW(
+                    std::ptr::null_mut(),
+                    verb.as_ptr(),
+                    url_wide.as_ptr(),
+                    std::ptr::null(),
+                    std::ptr::null(),
+                    windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
+                );
             }
         }
         IDM_OPEN_CONFIG => {
@@ -170,26 +251,67 @@ unsafe extern "system" fn wnd_proc(
             0
         }
         WM_TIMER if wparam == TRAY_TIMER_ID => {
-            if !service_manager::service_is_running().unwrap_or(false) {
-                unsafe { DestroyWindow(hwnd) };
-            } else {
-                let ptr = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) };
-                if ptr != 0 {
-                    let nid = unsafe { &mut *(ptr as *mut NOTIFYICONDATAW) };
-                    update_tooltip(nid);
-                }
+            let ptr = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) };
+            if ptr == 0 {
+                return 0;
             }
+            let nid = unsafe { &mut *(ptr as *mut NOTIFYICONDATAW) };
+            if service_manager::service_is_running().unwrap_or(false) {
+                update_tooltip(nid);
+            } else {
+                set_tooltip_text(
+                    nid,
+                    &format!("{SERVICE_DISPLAY_NAME} \u{2014} service is not running"),
+                );
+            }
+            // Re-add the icon in case the initial NIM_ADD failed (taskbar not ready).
+            unsafe { Shell_NotifyIconW(NIM_ADD, nid) };
             0
         }
         WM_DESTROY => {
             unsafe { PostQuitMessage(0) };
             0
         }
-        _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },
+        _ => {
+            // Re-add the tray icon when Explorer restarts or the taskbar is created.
+            if WM_TASKBAR_CREATED.get() == Some(&msg) && msg != 0 {
+                let ptr = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) };
+                if ptr != 0 {
+                    let nid = unsafe { &mut *(ptr as *mut NOTIFYICONDATAW) };
+                    unsafe { Shell_NotifyIconW(NIM_ADD, nid) };
+                }
+                return 0;
+            }
+            unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+        }
     }
 }
 
-pub fn run() -> Result<()> {
+pub fn run(with_web: bool) -> Result<()> {
+    let _ = RUNTIME.set(
+        tokio::runtime::Runtime::new()
+            .map_err(|e| anyhow!("Failed to create tokio runtime: {e}"))?,
+    );
+
+    let _ = WEB_ENABLED.set(with_web);
+
+    // Start the web dashboard server in the background.
+    if with_web && let Some(rt) = RUNTIME.get() {
+        rt.spawn(crate::dashboard::start());
+    }
+
+    // Hide the console window — the tray is a GUI-only process.
+    unsafe {
+        let console = windows_sys::Win32::System::Console::GetConsoleWindow();
+        if !console.is_null() {
+            ShowWindow(console, SW_HIDE);
+        }
+
+        let _ = WM_TASKBAR_CREATED.set(RegisterWindowMessageW(
+            wide_string("TaskbarCreated").as_ptr(),
+        ));
+    }
+
     unsafe {
         let class_name = wide_string("BarvazDNSTray");
         let null_instance: HINSTANCE = std::ptr::null_mut();
@@ -253,7 +375,12 @@ pub fn run() -> Result<()> {
         nid.uCallbackMessage = WM_TRAY_ICON;
         nid.hIcon = icon;
 
-        let tip = wide_string(&format_tooltip());
+        let initial_tip = if service_manager::service_is_running().unwrap_or(false) {
+            format_tooltip()
+        } else {
+            format!("{SERVICE_DISPLAY_NAME} \u{2014} service is not running")
+        };
+        let tip = wide_string(&initial_tip);
         let len = tip.len().min(nid.szTip.len());
         nid.szTip[..len].copy_from_slice(&tip[..len]);
 
