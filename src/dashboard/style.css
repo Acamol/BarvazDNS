@@ -272,3 +272,18 @@ body {
 }
 .update-banner a:hover { text-decoration: underline; }
 .hidden { display: none; }
+
+/* About card */
+.about-card { margin-top: 8px; }
+.about-desc { color: var(--text-dim); font-size: 0.9rem; margin-bottom: 10px; }
+.about-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  flex-wrap: wrap;
+}
+.about-sep { color: var(--border); }
+.about-meta a { color: var(--accent); text-decoration: none; font-weight: 600; }
+.about-meta a:hover { text-decoration: underline; }

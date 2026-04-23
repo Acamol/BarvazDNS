@@ -74,6 +74,23 @@
     &#127881; A new version <strong id="updateTag"></strong> is available!
     <a id="updateLink" href="#" target="_blank" rel="noopener">View release</a>
   </div>
+
+  <div class="card about-card">
+    <div class="detail-toggle" onclick="toggleDetail(this)">
+      <div class="card-title" style="margin-bottom:0">About</div>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="detail-body" id="aboutBody">
+      <p class="about-desc" id="aboutDesc"></p>
+      <div class="about-meta">
+        <span id="aboutAuthor"></span>
+        <span class="about-sep">&middot;</span>
+        <span id="aboutLicense"></span>
+        <span class="about-sep">&middot;</span>
+        <a id="aboutRepo" href="#" target="_blank" rel="noopener">Source Code</a>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="toast-container" id="toasts"></div>

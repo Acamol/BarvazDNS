@@ -9,7 +9,7 @@ use tokio::sync::oneshot;
 use crate::common::config::Config;
 use crate::common::consts::WEB_DASHBOARD_PORT;
 use crate::common::message::{Request, Response};
-use crate::common::strings::VERSION;
+use crate::common::strings::{AUTHORS, DESCRIPTION, LICENSE, REPOSITORY, VERSION};
 use crate::common::version_check;
 
 const DASHBOARD_HTML: &str = include_str!("dashboard.html");
@@ -144,6 +144,10 @@ async fn api_config() -> impl IntoResponse {
                 StatusCode::OK,
                 Json(serde_json::json!({
                     "version": VERSION,
+                    "authors": AUTHORS,
+                    "description": DESCRIPTION,
+                    "license": LICENSE,
+                    "repository": REPOSITORY,
                     "interval": humantime::format_duration(config.interval).to_string(),
                     "ipv6": config.ipv6 == Some(true),
                     "token_set": config.token.is_some(),

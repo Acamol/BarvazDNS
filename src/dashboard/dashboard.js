@@ -64,6 +64,15 @@ function render(status, config) {
 
   document.getElementById('domainCount').textContent = domains.length + ' / 5';
 
+  // About
+  document.getElementById('aboutDesc').textContent = config.description || '';
+  document.getElementById('aboutAuthor').textContent = config.authors || '';
+  document.getElementById('aboutLicense').textContent = config.license ? config.license + ' License' : '';
+  if (config.repository) {
+    var repoLink = document.getElementById('aboutRepo');
+    repoLink.href = config.repository;
+  }
+
   var list = document.getElementById('domainList');
   if (domains.length === 0) {
     list.innerHTML = '<span class="no-domains">No domains configured</span>';
