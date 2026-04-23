@@ -9,7 +9,9 @@ use tokio::sync::oneshot;
 use crate::common::config::Config;
 use crate::common::consts::WEB_DASHBOARD_PORT;
 use crate::common::message::{Request, Response};
-use crate::common::strings::{AUTHORS, DESCRIPTION, LICENSE, REPOSITORY, VERSION};
+use crate::common::strings::{
+    AUTHORS, DESCRIPTION, LICENSE, LOG_FILE_BASENAME, REPOSITORY, VERSION,
+};
 use crate::common::version_check;
 
 const DASHBOARD_HTML: &str = include_str!("dashboard.html");
@@ -36,6 +38,7 @@ pub fn router() -> Router {
         .route("/api/config", get(api_config))
         .route("/api/update", post(api_force_update))
         .route("/api/check-update", get(api_check_update))
+        .route("/api/logs", get(api_logs))
         .route("/api/reload", post(api_reload))
 }
 
@@ -188,6 +191,54 @@ async fn api_check_update() -> impl IntoResponse {
             "url": crate::common::consts::RELEASES_PAGE_URL,
         })),
         _ => Json(serde_json::json!({ "available": false })),
+    }
+}
+
+const MAX_LOG_BYTES: u64 = 64 * 1024; // 64KB tail
+
+async fn api_logs() -> impl IntoResponse {
+    let path = match Config::get_config_directory_path() {
+        Ok(mut p) => {
+            p.push(format!("{LOG_FILE_BASENAME}_rCURRENT.log"));
+            p
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            );
+        }
+    };
+
+    match tokio::fs::metadata(&path).await {
+        Ok(meta) => {
+            let file_len = meta.len();
+            let offset = file_len.saturating_sub(MAX_LOG_BYTES);
+            match tokio::fs::read(&path).await {
+                Ok(bytes) => {
+                    let slice = &bytes[offset as usize..];
+                    let text = String::from_utf8_lossy(slice);
+                    // If we skipped bytes, drop the first partial line
+                    let text = if offset > 0 {
+                        text.split_once('\n').map_or("", |(_first, rest)| rest)
+                    } else {
+                        &text
+                    };
+                    (
+                        StatusCode::OK,
+                        Json(serde_json::json!({ "lines": text.lines().collect::<Vec<_>>() })),
+                    )
+                }
+                Err(e) => (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": e.to_string() })),
+                ),
+            }
+        }
+        Err(_) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "lines": Vec::<String>::new() })),
+        ),
     }
 }
 

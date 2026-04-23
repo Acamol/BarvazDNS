@@ -57,6 +57,18 @@
   </div>
 
   <div class="card">
+    <div class="detail-toggle" onclick="toggleDetail(this)">
+      <div class="card-title" style="margin-bottom:0">Logs</div>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="detail-body" id="logsBody">
+      <div class="log-viewer" id="logViewer">
+        <div class="log-empty">Loading logs...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
     <div class="card-title">Actions</div>
     <div class="actions">
       <button class="btn primary" id="btnUpdate" onclick="forceUpdate()">

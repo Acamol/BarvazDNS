@@ -162,5 +162,64 @@ function timeAgo(d) {
   return Math.floor(s / 86400) + 'd ago';
 }
 
+// Log line format: [2024-01-15 14:30:22] INFO [module::path]: message
+var logLineRe = /^\[([^\]]+)\]\s+(ERROR|WARN|INFO|DEBUG|TRACE)\s+\[([^\]]*)\]:\s*(.*)/;
+
+function parseLogLine(line) {
+  var m = logLineRe.exec(line);
+  if (!m) return { raw: line, level: '' };
+  return { ts: m[1], level: m[2], module: m[3], msg: m[4] };
+}
+
+function renderLogLine(parsed) {
+  if (!parsed.level) {
+    var el = document.createElement('div');
+    el.className = 'log-line log-info';
+    el.textContent = parsed.raw;
+    return el;
+  }
+  var el = document.createElement('div');
+  el.className = 'log-line log-' + parsed.level.toLowerCase();
+  var ts = document.createElement('span');
+  ts.className = 'log-ts';
+  ts.textContent = '[' + parsed.ts + '] ';
+  var lvl = document.createTextNode(parsed.level + ' ');
+  var mod = document.createElement('span');
+  mod.className = 'log-mod';
+  mod.textContent = '[' + parsed.module + ']: ';
+  var msg = document.createTextNode(parsed.msg);
+  el.appendChild(ts);
+  el.appendChild(lvl);
+  el.appendChild(mod);
+  el.appendChild(msg);
+  return el;
+}
+
+async function fetchLogs() {
+  try {
+    var res = await fetch('/api/logs');
+    if (!res.ok) return;
+    var data = await res.json();
+    var viewer = document.getElementById('logViewer');
+    var wasAtBottom = viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 20;
+    viewer.innerHTML = '';
+    var lines = data.lines || [];
+    if (lines.length === 0) {
+      viewer.innerHTML = '<div class="log-empty">No log entries</div>';
+      return;
+    }
+    var frag = document.createDocumentFragment();
+    for (var i = lines.length - 1; i >= 0; i--) {
+      frag.appendChild(renderLogLine(parseLogLine(lines[i])));
+    }
+    viewer.appendChild(frag);
+    if (wasAtBottom) {
+      viewer.scrollTop = viewer.scrollHeight;
+    }
+  } catch (e) { /* ignore */ }
+}
+
 fetchData();
+fetchLogs();
 setInterval(fetchData, 10000);
+setInterval(fetchLogs, 10000);

@@ -273,6 +273,32 @@ body {
 .update-banner a:hover { text-decoration: underline; }
 .hidden { display: none; }
 
+/* Log viewer */
+.log-viewer {
+  background: #0a0c10;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  max-height: 360px;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.6;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.log-viewer::-webkit-scrollbar { width: 6px; }
+.log-viewer::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.log-line { white-space: pre-wrap; word-break: break-all; }
+.log-line .log-ts { color: var(--text-dim); }
+.log-line .log-mod { color: #7a8aab; }
+.log-line.log-error { color: var(--red); }
+.log-line.log-warn { color: var(--yellow); }
+.log-line.log-info { color: var(--text); }
+.log-line.log-debug { color: var(--text-dim); }
+.log-line.log-trace { color: #555; }
+.log-empty { color: var(--text-dim); font-style: italic; font-size: 0.85rem; }
+
 /* About card */
 .about-card { margin-top: 8px; }
 .about-desc { color: var(--text-dim); font-size: 0.9rem; margin-bottom: 10px; }
