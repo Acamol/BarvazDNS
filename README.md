@@ -96,7 +96,7 @@ The dashboard port can be changed in `config.toml` under the `[dashboard]` secti
 BarvazDNS dashboard-port 9090
 ```
 
-To disable the dashboard, start the service with the `--no-web` flag.
+To disable the dashboard, set `disabled = true` in the `[dashboard]` section of `config.toml`, or start the service with the `--no-web` flag.
 
 ![Dashboard screenshot](resources/dashboard-screenshot.png)
 
