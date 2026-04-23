@@ -106,6 +106,30 @@ async function forceUpdate() {
   }
 }
 
+async function checkForUpdate() {
+  var btn = document.getElementById('btnCheckUpdate');
+  btn.classList.add('loading');
+  btn.disabled = true;
+  try {
+    var res = await fetch('/api/check-update');
+    var data = await res.json();
+    if (data.available) {
+      document.getElementById('updateTag').textContent = data.tag;
+      document.getElementById('updateLink').href = data.url;
+      document.getElementById('updateBanner').classList.remove('hidden');
+      toast('New version available: ' + data.tag);
+    } else {
+      toast('You are on the latest version');
+      document.getElementById('updateBanner').classList.add('hidden');
+    }
+  } catch (e) {
+    toast('Could not check for updates', 'error');
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+}
+
 function escHtml(s) {
   const d = document.createElement('div');
   d.textContent = s;

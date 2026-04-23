@@ -251,3 +251,24 @@ body {
   .container { padding: 20px 14px 36px; }
 }
 
+/* Update banner */
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  margin-top: 16px;
+  background: rgba(108, 99, 255, 0.12);
+  border: 1px solid var(--accent);
+  font-size: 0.9rem;
+  color: var(--text);
+}
+.update-banner a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+  margin-left: auto;
+}
+.update-banner a:hover { text-decoration: underline; }
+.hidden { display: none; }

@@ -10,6 +10,7 @@ use crate::common::config::Config;
 use crate::common::consts::WEB_DASHBOARD_PORT;
 use crate::common::message::{Request, Response};
 use crate::common::strings::VERSION;
+use crate::common::version_check;
 
 const DASHBOARD_HTML: &str = include_str!("dashboard.html");
 const DASHBOARD_CSS: &str = include_str!("style.css");
@@ -34,6 +35,7 @@ pub fn router() -> Router {
         .route("/api/status", get(api_status))
         .route("/api/config", get(api_config))
         .route("/api/update", post(api_force_update))
+        .route("/api/check-update", get(api_check_update))
         .route("/api/reload", post(api_reload))
 }
 
@@ -170,6 +172,18 @@ async fn api_force_update() -> impl IntoResponse {
         Ok(Response::Err(e)) => Json(serde_json::json!({ "ok": false, "error": e })),
         Err(e) => Json(serde_json::json!({ "ok": false, "error": e.to_string() })),
         _ => Json(serde_json::json!({ "ok": false, "error": "unexpected response" })),
+    }
+}
+
+async fn api_check_update() -> impl IntoResponse {
+    let result = tokio::task::spawn_blocking(version_check::check_for_update).await;
+    match result {
+        Ok(Some(tag)) => Json(serde_json::json!({
+            "available": true,
+            "tag": tag,
+            "url": crate::common::consts::RELEASES_PAGE_URL,
+        })),
+        _ => Json(serde_json::json!({ "available": false })),
     }
 }
 
