@@ -17,12 +17,16 @@ function toggleDetail(el) {
 
 async function fetchData() {
   try {
-    const [statusRes, configRes] = await Promise.all([
-      fetch('/api/status'),
-      fetch('/api/config')
-    ]);
-    if (!statusRes.ok || !configRes.ok) {
-      if (statusRes.status === 503 || configRes.status === 503) {
+    const statusRes = await fetch('/api/status');
+    if (!statusRes.ok) {
+      if (statusRes.status === 503) {
+        setBanner('error', 'Service is not running', '');
+      }
+      return;
+    }
+    const configRes = await fetch('/api/config');
+    if (!configRes.ok) {
+      if (configRes.status === 503) {
         setBanner('error', 'Service is not running', '');
       }
       return;
