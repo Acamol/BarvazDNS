@@ -21,6 +21,12 @@ async function fetchData() {
       fetch('/api/status'),
       fetch('/api/config')
     ]);
+    if (!statusRes.ok || !configRes.ok) {
+      if (statusRes.status === 503 || configRes.status === 503) {
+        setBanner('error', 'Service is not running', '');
+      }
+      return;
+    }
     const status = await statusRes.json();
     const config = await configRes.json();
     render(status, config);
