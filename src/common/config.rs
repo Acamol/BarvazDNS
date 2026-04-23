@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::path::PathBuf;
 use std::time::Duration;
-use std::{collections::HashSet, fmt};
+use std::{collections::BTreeSet, fmt};
 use std::{env, fs};
 
 use anyhow::{Result, anyhow};
@@ -38,7 +38,7 @@ impl fmt::Display for Token {
 pub struct ServiceConfig {
     pub token: Option<Token>,
     #[serde(default)]
-    pub domain: HashSet<String>,
+    pub domain: BTreeSet<String>,
     #[serde(with = "humantime_serde")]
     pub interval: Duration,
     pub ipv6: Option<bool>,

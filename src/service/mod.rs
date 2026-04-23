@@ -224,7 +224,7 @@ fn validate_interval(interval: &Duration) -> Result<()> {
     }
 }
 
-fn validate_add_domain(domain: &str, existing: &std::collections::HashSet<String>) -> Result<()> {
+fn validate_add_domain(domain: &str, existing: &std::collections::BTreeSet<String>) -> Result<()> {
     if !is_valid_domain(domain) {
         Err(anyhow!("Invalid domain name: {domain}"))
     } else if existing.len() >= common::consts::MAX_DOMAIN_COUNT {
@@ -241,7 +241,7 @@ fn validate_add_domain(domain: &str, existing: &std::collections::HashSet<String
 
 fn validate_remove_domain(
     domain: &str,
-    existing: &std::collections::HashSet<String>,
+    existing: &std::collections::BTreeSet<String>,
 ) -> Result<()> {
     if existing.contains(domain) {
         Ok(())
@@ -518,7 +518,7 @@ fn run_service(context: ServiceContext, shutdown_rx: mpsc::Receiver<()>) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashSet;
+    use std::collections::BTreeSet;
 
     #[test]
     fn valid_domains() {
@@ -588,25 +588,25 @@ mod tests {
 
     #[test]
     fn validate_add_domain_success() {
-        let existing = HashSet::new();
+        let existing = BTreeSet::new();
         assert!(validate_add_domain("myhost", &existing).is_ok());
     }
 
     #[test]
     fn validate_add_domain_invalid_name() {
-        let existing = HashSet::new();
+        let existing = BTreeSet::new();
         assert!(validate_add_domain("-bad", &existing).is_err());
     }
 
     #[test]
     fn validate_add_domain_duplicate() {
-        let existing: HashSet<String> = ["myhost".to_string()].into();
+        let existing: BTreeSet<String> = ["myhost".to_string()].into();
         assert!(validate_add_domain("myhost", &existing).is_err());
     }
 
     #[test]
     fn validate_add_domain_at_limit() {
-        let existing: HashSet<String> = (0..common::consts::MAX_DOMAIN_COUNT)
+        let existing: BTreeSet<String> = (0..common::consts::MAX_DOMAIN_COUNT)
             .map(|i| format!("host{i}"))
             .collect();
         assert!(validate_add_domain("onemore", &existing).is_err());
@@ -614,13 +614,13 @@ mod tests {
 
     #[test]
     fn validate_remove_domain_exists() {
-        let existing: HashSet<String> = ["myhost".to_string()].into();
+        let existing: BTreeSet<String> = ["myhost".to_string()].into();
         assert!(validate_remove_domain("myhost", &existing).is_ok());
     }
 
     #[test]
     fn validate_remove_domain_not_found() {
-        let existing = HashSet::new();
+        let existing = BTreeSet::new();
         assert!(validate_remove_domain("missing", &existing).is_err());
     }
 }

@@ -56,7 +56,6 @@ function render(status, config) {
   document.getElementById('ipv6').textContent = config.ipv6 ? 'Enabled' : 'Disabled';
   document.getElementById('token').textContent = config.token_set ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' : 'Not set';
 
-  var domains = config.domains || [];
   document.getElementById('domainCount').textContent = domains.length + ' / 5';
 
   var list = document.getElementById('domainList');
