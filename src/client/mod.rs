@@ -252,9 +252,13 @@ pub async fn get_last_status() -> Result<()> {
 /// Queries for the latest released version and prints a message
 /// indicating whether an update is available or the current version is up to date.
 /// Also queries the running service version and warns if it differs from the CLI.
-pub async fn check_update() {
+/// If a newer version is found, prompts the user to install it.
+pub async fn check_update(is_elevated: bool) {
     match common::version_check::check_for_update() {
-        Some(latest) => print_update_notice(&latest),
+        Some(latest) => {
+            print_update_notice(&latest);
+            prompt_install_update(is_elevated);
+        }
         None => println!(
             "You are running the latest version ({}).",
             common::strings::VERSION
@@ -262,6 +266,107 @@ pub async fn check_update() {
     }
 
     check_service_version_mismatch().await;
+}
+
+/// Prompts the user to install the update. If accepted and not already elevated,
+/// re-launches the process with `install-update` in an elevated context.
+fn prompt_install_update(is_elevated: bool) {
+    let accepted = loop {
+        match common::prompt::yes_no_question("Would you like to install it now?") {
+            Ok(common::prompt::Answer::Yes) => break true,
+            Ok(common::prompt::Answer::No) => break false,
+            Err(e) => println!("{e}"),
+        }
+    };
+
+    if !accepted {
+        return;
+    }
+
+    if is_elevated {
+        if let Err(e) = do_install_update() {
+            eprintln!("Update failed: {e}");
+        }
+    } else {
+        elevate_with_command("install-update");
+    }
+}
+
+fn elevate_with_command(command: &str) {
+    let exe = std::env::current_exe().expect("Failed to determine executable path");
+    let args_str = format!("{command} --elevated");
+    let verb: Vec<u16> = "runas".encode_utf16().chain(std::iter::once(0)).collect();
+    let file: Vec<u16> = exe
+        .to_string_lossy()
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+    let params: Vec<u16> = args_str.encode_utf16().chain(std::iter::once(0)).collect();
+
+    let result = unsafe {
+        windows_sys::Win32::UI::Shell::ShellExecuteW(
+            std::ptr::null_mut(),
+            verb.as_ptr(),
+            file.as_ptr(),
+            params.as_ptr(),
+            std::ptr::null(),
+            windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
+        )
+    };
+
+    if (result as isize) <= 32 {
+        eprintln!(
+            "Failed to request administrator privileges (error code {}).",
+            result as isize
+        );
+    }
+}
+
+/// Downloads and installs the latest release, replacing the current executable.
+pub fn do_install_update() -> Result<()> {
+    println!("Checking for the latest release...");
+    let info = common::version_check::get_update_info()
+        .ok_or_else(|| anyhow!("No newer version found or failed to fetch release info."))?;
+
+    println!("Downloading {}...", info.tag);
+    let current_exe =
+        std::env::current_exe().map_err(|e| anyhow!("Failed to determine executable path: {e}"))?;
+    let parent = current_exe
+        .parent()
+        .ok_or_else(|| anyhow!("Cannot determine executable directory"))?;
+    let new_exe = parent.join("BarvazDNS_new.exe");
+    let old_exe = current_exe.with_extension("exe.old");
+
+    common::version_check::download_release(&info.download_url, &new_exe)?;
+
+    // Stop the service if it is running
+    let was_running = crate::service_manager::service_is_running().unwrap_or(false);
+    if was_running {
+        println!("Stopping the service...");
+        crate::service_manager::stop_service()?;
+    }
+
+    // Swap executables
+    if old_exe.exists() {
+        std::fs::remove_file(&old_exe).map_err(|e| anyhow!("Failed to remove old backup: {e}"))?;
+    }
+    std::fs::rename(&current_exe, &old_exe)
+        .map_err(|e| anyhow!("Failed to rename current executable: {e}"))?;
+    std::fs::rename(&new_exe, &current_exe)
+        .map_err(|e| anyhow!("Failed to move new executable into place: {e}"))?;
+
+    // Reinstall the service so the SCM references the updated binary
+    println!("Reinstalling the service...");
+    crate::service_manager::reinstall_service()?;
+
+    if was_running {
+        println!("Starting the service...");
+        // Don't spawn a new tray — the caller (CLI or dashboard) manages its own tray.
+        crate::service_manager::start_service(false, false)?;
+    }
+
+    println!("\nBarvazDNS has been updated to {}.", info.tag);
+    Ok(())
 }
 
 /// Queries the running service version and warns if it differs from the CLI version.

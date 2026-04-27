@@ -38,6 +38,7 @@ pub fn router() -> Router {
         .route("/api/config", get(api_config))
         .route("/api/update", post(api_force_update))
         .route("/api/check-update", get(api_check_update))
+        .route("/api/install-update", post(api_install_update))
         .route("/api/logs", get(api_logs))
         .route("/api/reload", post(api_reload))
 }
@@ -192,6 +193,43 @@ async fn api_check_update() -> impl IntoResponse {
         })),
         _ => Json(serde_json::json!({ "available": false })),
     }
+}
+
+async fn api_install_update() -> impl IntoResponse {
+    let result = tokio::task::spawn_blocking(crate::client::do_install_update).await;
+    match result {
+        Ok(Ok(())) => {
+            // Schedule a tray restart so the response reaches the browser first.
+            tokio::spawn(restart_tray_process());
+            Json(serde_json::json!({ "ok": true }))
+        }
+        Ok(Err(e)) => Json(serde_json::json!({ "ok": false, "error": e.to_string() })),
+        Err(e) => Json(serde_json::json!({ "ok": false, "error": e.to_string() })),
+    }
+}
+
+/// Spawns a delayed trampoline that starts the new tray after this process exits.
+async fn restart_tray_process() {
+    // Small delay so the HTTP response can be flushed to the client.
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+    let exe = std::env::current_exe().unwrap_or_default();
+    // Spawn a detached cmd that waits 2 seconds (for this process to fully exit
+    // and release the dashboard port), then launches the updated tray.
+    use std::os::windows::process::CommandExt;
+    const DETACHED_PROCESS: u32 = 0x0000_0008;
+    let _ = std::process::Command::new("cmd")
+        .raw_arg(format!(
+            "/C ping -n 3 127.0.0.1 >nul & \"{}\" tray",
+            exe.display()
+        ))
+        .creation_flags(DETACHED_PROCESS)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+
+    std::process::exit(0);
 }
 
 const MAX_LOG_BYTES: u64 = 64 * 1024; // 64KB tail

@@ -47,7 +47,7 @@ fn service_is_installed() -> Result<bool> {
         .is_ok())
 }
 
-fn spawn_tray(with_web: bool) -> Result<()> {
+pub fn spawn_tray(with_web: bool) -> Result<()> {
     use std::os::windows::process::CommandExt;
     const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
     const DETACHED_PROCESS: u32 = 0x0000_0008;
@@ -193,6 +193,41 @@ pub fn uninstall_service() -> Result<()> {
 
 fn uninstall_service_quiet() -> Result<()> {
     remove_service()
+}
+
+/// Silently uninstalls and reinstalls the service, preserving configuration.
+/// Unlike `install_service`, this never prompts on stdin.
+pub fn reinstall_service() -> Result<()> {
+    if service_is_installed()? {
+        uninstall_service_quiet()?;
+    }
+
+    let manager_access = ServiceManagerAccess::CONNECT | ServiceManagerAccess::CREATE_SERVICE;
+    let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
+
+    let service_binary_path = ::std::env::current_exe()
+        .map_err(|e| anyhow!("Failed to determine executable path: {e}"))?;
+
+    let service_info = ServiceInfo {
+        name: OsString::from(SERVICE_NAME),
+        display_name: OsString::from(SERVICE_DISPLAY_NAME),
+        service_type: ServiceType::OWN_PROCESS,
+        start_type: ServiceStartType::AutoStart,
+        error_control: ServiceErrorControl::Normal,
+        executable_path: service_binary_path,
+        launch_arguments: vec![OsString::from("service"), OsString::from("run-as-service")],
+        dependencies: vec![],
+        account_name: None,
+        account_password: None,
+    };
+    let service = service_manager.create_service(&service_info, ServiceAccess::CHANGE_CONFIG)?;
+    service.set_description(SERVICE_DESCRIPTION)?;
+
+    if let Err(e) = register_tray_startup() {
+        log::warn!("Failed to register tray startup: {e}");
+    }
+
+    Ok(())
 }
 
 fn remove_service() -> Result<()> {

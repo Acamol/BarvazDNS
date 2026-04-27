@@ -168,7 +168,8 @@ async fn tokio_main(args: Cli) -> Result<()> {
         }
         Command::Config => client::print_configuration().await?,
         Command::Status => client::get_last_status().await?,
-        Command::CheckUpdate => client::check_update().await,
+        Command::CheckUpdate => client::check_update(args.elevated).await,
+        Command::InstallUpdate => client::do_install_update()?,
         Command::ClearLogs => {
             let deleted = client::clear_logs()?;
             match deleted {

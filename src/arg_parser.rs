@@ -124,6 +124,9 @@ pub enum Command {
     Status,
     /// Checks if a newer version is available.
     CheckUpdate,
+    /// Downloads and installs the latest version.
+    #[clap(hide = true)]
+    InstallUpdate,
     /// Deletes all log files.
     ClearLogs,
     /// Sets the dashboard port.

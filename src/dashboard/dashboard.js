@@ -143,6 +143,28 @@ async function checkForUpdate() {
   }
 }
 
+async function installUpdate() {
+  var btn = document.getElementById('btnInstallUpdate');
+  btn.disabled = true;
+  btn.textContent = 'Installing\u2026';
+  try {
+    var res = await fetch('/api/install-update', { method: 'POST' });
+    var data = await res.json();
+    if (data.ok) {
+      toast('Update installed! The service has been restarted.');
+      document.getElementById('updateBanner').classList.add('hidden');
+      fetchData();
+    } else {
+      toast(data.error || 'Install failed', 'error');
+    }
+  } catch (e) {
+    toast('Install request failed', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Install Update';
+  }
+}
+
 function escHtml(s) {
   const d = document.createElement('div');
   d.textContent = s;

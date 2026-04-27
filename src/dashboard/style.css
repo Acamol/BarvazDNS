@@ -268,9 +268,26 @@ body {
   color: var(--accent);
   text-decoration: none;
   font-weight: 600;
-  margin-left: auto;
 }
 .update-banner a:hover { text-decoration: underline; }
+.update-banner .btn-sm {
+  margin-left: auto;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.update-banner .btn-sm:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.update-banner .btn-sm:hover:not(:disabled) {
+  opacity: 0.9;
+}
 .hidden { display: none; }
 
 /* Log viewer */
