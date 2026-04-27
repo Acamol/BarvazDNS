@@ -17,10 +17,20 @@ function toggleDetail(el) {
 
 async function fetchData() {
   try {
-    const [statusRes, configRes] = await Promise.all([
-      fetch('/api/status'),
-      fetch('/api/config')
-    ]);
+    const statusRes = await fetch('/api/status');
+    if (!statusRes.ok) {
+      if (statusRes.status === 503) {
+        setBanner('error', 'Service is not running', '');
+      }
+      return;
+    }
+    const configRes = await fetch('/api/config');
+    if (!configRes.ok) {
+      if (configRes.status === 503) {
+        setBanner('error', 'Service is not running', '');
+      }
+      return;
+    }
     const status = await statusRes.json();
     const config = await configRes.json();
     render(status, config);
@@ -56,8 +66,16 @@ function render(status, config) {
   document.getElementById('ipv6').textContent = config.ipv6 ? 'Enabled' : 'Disabled';
   document.getElementById('token').textContent = config.token_set ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' : 'Not set';
 
-  var domains = config.domains || [];
   document.getElementById('domainCount').textContent = domains.length + ' / 5';
+
+  // About
+  document.getElementById('aboutDesc').textContent = config.description || '';
+  document.getElementById('aboutAuthor').textContent = config.authors || '';
+  document.getElementById('aboutLicense').textContent = config.license ? config.license + ' License' : '';
+  if (config.repository) {
+    var repoLink = document.getElementById('aboutRepo');
+    repoLink.href = config.repository;
+  }
 
   var list = document.getElementById('domainList');
   if (domains.length === 0) {
@@ -101,6 +119,30 @@ async function forceUpdate() {
   }
 }
 
+async function checkForUpdate() {
+  var btn = document.getElementById('btnCheckUpdate');
+  btn.classList.add('loading');
+  btn.disabled = true;
+  try {
+    var res = await fetch('/api/check-update');
+    var data = await res.json();
+    if (data.available) {
+      document.getElementById('updateTag').textContent = data.tag;
+      document.getElementById('updateLink').href = data.url;
+      document.getElementById('updateBanner').classList.remove('hidden');
+      toast('New version available: ' + data.tag);
+    } else {
+      toast('You are on the latest version');
+      document.getElementById('updateBanner').classList.add('hidden');
+    }
+  } catch (e) {
+    toast('Could not check for updates', 'error');
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+}
+
 function escHtml(s) {
   const d = document.createElement('div');
   d.textContent = s;
@@ -124,5 +166,64 @@ function timeAgo(d) {
   return Math.floor(s / 86400) + 'd ago';
 }
 
+// Log line format: [2024-01-15 14:30:22] INFO [module::path]: message
+var logLineRe = /^\[([^\]]+)\]\s+(ERROR|WARN|INFO|DEBUG|TRACE)\s+\[([^\]]*)\]:\s*(.*)/;
+
+function parseLogLine(line) {
+  var m = logLineRe.exec(line);
+  if (!m) return { raw: line, level: '' };
+  return { ts: m[1], level: m[2], module: m[3], msg: m[4] };
+}
+
+function renderLogLine(parsed) {
+  if (!parsed.level) {
+    var el = document.createElement('div');
+    el.className = 'log-line log-info';
+    el.textContent = parsed.raw;
+    return el;
+  }
+  var el = document.createElement('div');
+  el.className = 'log-line log-' + parsed.level.toLowerCase();
+  var ts = document.createElement('span');
+  ts.className = 'log-ts';
+  ts.textContent = '[' + parsed.ts + '] ';
+  var lvl = document.createTextNode(parsed.level + ' ');
+  var mod = document.createElement('span');
+  mod.className = 'log-mod';
+  mod.textContent = '[' + parsed.module + ']: ';
+  var msg = document.createTextNode(parsed.msg);
+  el.appendChild(ts);
+  el.appendChild(lvl);
+  el.appendChild(mod);
+  el.appendChild(msg);
+  return el;
+}
+
+async function fetchLogs() {
+  try {
+    var res = await fetch('/api/logs');
+    if (!res.ok) return;
+    var data = await res.json();
+    var viewer = document.getElementById('logViewer');
+    var wasAtBottom = viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 20;
+    viewer.innerHTML = '';
+    var lines = data.lines || [];
+    if (lines.length === 0) {
+      viewer.innerHTML = '<div class="log-empty">No log entries</div>';
+      return;
+    }
+    var frag = document.createDocumentFragment();
+    for (var i = lines.length - 1; i >= 0; i--) {
+      frag.appendChild(renderLogLine(parseLogLine(lines[i])));
+    }
+    viewer.appendChild(frag);
+    if (wasAtBottom) {
+      viewer.scrollTop = viewer.scrollHeight;
+    }
+  } catch (e) { /* ignore */ }
+}
+
 fetchData();
+fetchLogs();
 setInterval(fetchData, 10000);
+setInterval(fetchLogs, 10000);

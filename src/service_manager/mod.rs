@@ -20,7 +20,7 @@ use crate::{
         config::Config,
         message::{Request, Response},
         prompt::{Answer, yes_no_question},
-        strings::{SERVICE_DESCRIPTION, SERVICE_DISPLAY_NAME, SERVICE_NAME, VERSION},
+        strings::{SERVICE_DESCRIPTION, SERVICE_DISPLAY_NAME, SERVICE_NAME},
     },
 };
 
@@ -115,22 +115,27 @@ fn unregister_tray_startup() {
 /// * `Err(e)` where `e` is an error type describing the failure, if the service installation failed.
 pub fn install_service(args: InstallArgs) -> Result<()> {
     if service_is_installed()? {
-        println!(
-            "An existing installation of {SERVICE_DISPLAY_NAME} was detected.\nTo install version {VERSION}, the existing installation must be uninstalled."
-        );
+        println!("An existing installation of {SERVICE_DISPLAY_NAME} was detected.");
 
-        loop {
-            match yes_no_question("Proceed with uninstallation and installation?") {
-                Ok(Answer::Yes) => {
-                    uninstall_service()?;
-                    break;
-                }
-                Ok(Answer::No) => {
-                    println!("Installation aborted.");
-                    return Ok(());
-                }
+        let keep_config = loop {
+            match yes_no_question("Would you like to keep your existing configuration?") {
+                Ok(Answer::Yes) => break true,
+                Ok(Answer::No) => break false,
                 Err(e) => println!("{e}"),
             }
+        };
+
+        uninstall_service_quiet()?;
+
+        if !keep_config
+            && let Ok(path) = Config::get_config_directory_path()
+            && path.is_dir()
+        {
+            std::fs::remove_dir_all(&path)
+                .map_err(|e| anyhow!("Failed to delete configuration directory: {e}"))?;
+            println!("Configuration directory deleted.");
+        } else if keep_config {
+            println!("Upgrading \u{2014} existing configuration will be preserved.");
         }
     }
 
@@ -181,6 +186,16 @@ pub fn install_service(args: InstallArgs) -> Result<()> {
 /// * `Ok(())` on successful uninstallation or marking for deletion.
 /// * `Err(e)` if an error occurs during the process.
 pub fn uninstall_service() -> Result<()> {
+    remove_service()?;
+    prompt_delete_config_directory();
+    Ok(())
+}
+
+fn uninstall_service_quiet() -> Result<()> {
+    remove_service()
+}
+
+fn remove_service() -> Result<()> {
     if !service_is_installed()? {
         return Err(anyhow!("{SERVICE_DISPLAY_NAME} is not installed"));
     }
@@ -213,14 +228,12 @@ pub fn uninstall_service() -> Result<()> {
             && e.raw_os_error() == Some(ERROR_SERVICE_DOES_NOT_EXIST as i32)
         {
             println!("{SERVICE_DISPLAY_NAME} is uninstalled.");
-            prompt_delete_config_directory();
             return Ok(());
         }
         sleep(Duration::from_secs(1));
     }
 
     println!("{SERVICE_DISPLAY_NAME} is marked for deletion.");
-    prompt_delete_config_directory();
     Ok(())
 }
 

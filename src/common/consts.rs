@@ -11,4 +11,5 @@ pub const SERVICE_POLL_TIMEOUT: Duration = Duration::from_secs(5);
 pub const TRAY_POLL_INTERVAL_MS: u32 = 5000;
 pub const LATEST_RELEASE_URL: &str =
     "https://api.github.com/repos/acamol/BarvazDNS/releases/latest";
+pub const RELEASES_PAGE_URL: &str = "https://github.com/Acamol/BarvazDNS/releases";
 pub const WEB_DASHBOARD_PORT: u16 = 18733;

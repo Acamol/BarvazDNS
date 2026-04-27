@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BarvazDNS Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F986;</text></svg>">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -56,12 +57,50 @@
   </div>
 
   <div class="card">
+    <div class="detail-toggle" onclick="toggleDetail(this)">
+      <div class="card-title" style="margin-bottom:0">Logs</div>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="detail-body" id="logsBody">
+      <div class="log-viewer" id="logViewer">
+        <div class="log-empty">Loading logs...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
     <div class="card-title">Actions</div>
     <div class="actions">
       <button class="btn primary" id="btnUpdate" onclick="forceUpdate()">
         <span class="spinner"></span>
         <span class="btn-label">&#10227; Force Update</span>
       </button>
+      <button class="btn" id="btnCheckUpdate" onclick="checkForUpdate()">
+        <span class="spinner"></span>
+        <span class="btn-label">Check for Updates</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="update-banner hidden" id="updateBanner">
+    &#127881; A new version <strong id="updateTag"></strong> is available!
+    <a id="updateLink" href="#" target="_blank" rel="noopener">View release</a>
+  </div>
+
+  <div class="card about-card">
+    <div class="detail-toggle" onclick="toggleDetail(this)">
+      <div class="card-title" style="margin-bottom:0">About</div>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="detail-body" id="aboutBody">
+      <p class="about-desc" id="aboutDesc"></p>
+      <div class="about-meta">
+        <span id="aboutAuthor"></span>
+        <span class="about-sep">&middot;</span>
+        <span id="aboutLicense"></span>
+        <span class="about-sep">&middot;</span>
+        <a id="aboutRepo" href="#" target="_blank" rel="noopener">Source Code</a>
+      </div>
     </div>
   </div>
 </div>

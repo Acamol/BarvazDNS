@@ -293,10 +293,14 @@ pub fn run(with_web: bool) -> Result<()> {
             .map_err(|e| anyhow!("Failed to create tokio runtime: {e}"))?,
     );
 
-    let _ = WEB_ENABLED.set(with_web);
+    let config_disabled = crate::common::config::Config::read()
+        .map(|c| c.dashboard.as_ref().is_some_and(|d| d.disabled))
+        .unwrap_or(false);
+    let web_enabled = with_web && !config_disabled;
+    let _ = WEB_ENABLED.set(web_enabled);
 
     // Start the web dashboard server in the background.
-    if with_web && let Some(rt) = RUNTIME.get() {
+    if web_enabled && let Some(rt) = RUNTIME.get() {
         rt.spawn(crate::dashboard::start());
     }
 

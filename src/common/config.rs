@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::path::PathBuf;
 use std::time::Duration;
-use std::{collections::HashSet, fmt};
+use std::{collections::BTreeSet, fmt};
 use std::{env, fs};
 
 use anyhow::{Result, anyhow};
@@ -38,7 +38,7 @@ impl fmt::Display for Token {
 pub struct ServiceConfig {
     pub token: Option<Token>,
     #[serde(default)]
-    pub domain: HashSet<String>,
+    pub domain: BTreeSet<String>,
     #[serde(with = "humantime_serde")]
     pub interval: Duration,
     pub ipv6: Option<bool>,
@@ -99,8 +99,14 @@ impl fmt::Display for ServiceConfig {
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default)]
 pub struct DashboardConfig {
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub disabled: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub port: Option<u16>,
+}
+
+fn is_false(v: &bool) -> bool {
+    !*v
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -329,7 +335,10 @@ mod tests {
     #[test]
     fn dashboard_port_returns_default_when_port_is_none() {
         let mut config = make_config();
-        config.dashboard = Some(DashboardConfig { port: None });
+        config.dashboard = Some(DashboardConfig {
+            disabled: false,
+            port: None,
+        });
         assert_eq!(
             config.effective_dashboard_port(),
             crate::common::consts::WEB_DASHBOARD_PORT
@@ -339,7 +348,10 @@ mod tests {
     #[test]
     fn dashboard_port_returns_custom_when_set() {
         let mut config = make_config();
-        config.dashboard = Some(DashboardConfig { port: Some(9999) });
+        config.dashboard = Some(DashboardConfig {
+            disabled: false,
+            port: Some(9999),
+        });
         assert_eq!(config.effective_dashboard_port(), 9999);
     }
 
