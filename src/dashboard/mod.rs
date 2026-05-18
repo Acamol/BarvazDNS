@@ -38,6 +38,7 @@ pub fn router() -> Router {
         .route("/api/config", get(api_config))
         .route("/api/update", post(api_force_update))
         .route("/api/check-update", get(api_check_update))
+        .route("/api/do-update", post(api_do_update))
         .route("/api/logs", get(api_logs))
         .route("/api/reload", post(api_reload))
 }
@@ -192,6 +193,94 @@ async fn api_check_update() -> impl IntoResponse {
         })),
         _ => Json(serde_json::json!({ "available": false })),
     }
+}
+
+async fn api_do_update() -> impl IntoResponse {
+    // Verify the update and get the download URL synchronously before responding.
+    let info =
+        match tokio::task::spawn_blocking(version_check::check_for_update_with_url).await {
+            Ok(Some(info)) => info,
+            Ok(None) => {
+                return Json(
+                    serde_json::json!({ "ok": false, "error": "No update available or download URL not found" }),
+                );
+            }
+            Err(e) => {
+                return Json(serde_json::json!({ "ok": false, "error": e.to_string() }));
+            }
+        };
+
+    // Spawn the download + install asynchronously so the response reaches the browser
+    // before this process exits.
+    tokio::task::spawn_blocking(move || {
+        if let Err(e) = perform_self_update(info) {
+            log::error!("Self-update failed: {e}");
+        }
+    });
+
+    Json(serde_json::json!({ "ok": true }))
+}
+
+fn perform_self_update(info: version_check::UpdateInfo) -> anyhow::Result<()> {
+    use anyhow::anyhow;
+
+    log::info!("Downloading update {}...", info.tag);
+
+    let response = minreq::get(&info.download_url)
+        .with_header("User-Agent", "BarvazDNS")
+        .with_timeout(120)
+        .send()
+        .map_err(|e| anyhow!("Download failed: {e}"))?;
+
+    if response.status_code != 200 {
+        return Err(anyhow!("Download failed: HTTP {}", response.status_code));
+    }
+
+    let new_binary = response.as_bytes().to_vec();
+
+    let temp_path = std::env::temp_dir().join("BarvazDNS_update.exe");
+    std::fs::write(&temp_path, &new_binary)
+        .map_err(|e| anyhow!("Failed to write temp file: {e}"))?;
+
+    let current_exe = std::env::current_exe()
+        .map_err(|e| anyhow!("Failed to determine current exe path: {e}"))?;
+    let old_exe = current_exe.with_extension("exe.old");
+
+    log::info!("Stopping service for update...");
+    crate::service_manager::stop_service()
+        .map_err(|e| anyhow!("Failed to stop service: {e}"))?;
+
+    // Rename the running exe out of the way. On Windows, renaming a running
+    // executable is allowed; open handles keep the inode alive.
+    std::fs::rename(&current_exe, &old_exe)
+        .map_err(|e| anyhow!("Failed to rename current exe: {e}"))?;
+
+    // Copy (not rename) the new binary into place so cross-drive paths work.
+    if let Err(e) = std::fs::copy(&temp_path, &current_exe) {
+        let _ = std::fs::rename(&old_exe, &current_exe);
+        return Err(anyhow!("Failed to place new exe: {e}"));
+    }
+    let _ = std::fs::remove_file(&temp_path);
+
+    log::info!("Starting updated service...");
+    if let Err(e) = crate::service_manager::start_service(true, true) {
+        // Restore the original binary and try to bring the service back up.
+        let _ = std::fs::remove_file(&current_exe);
+        let _ = std::fs::rename(&old_exe, &current_exe);
+        let _ = crate::service_manager::start_service(true, true);
+        return Err(anyhow!("Failed to start updated service: {e}"));
+    }
+
+    let _ = std::fs::remove_file(&old_exe);
+
+    log::info!("Update to {} complete — exiting old tray process", info.tag);
+    // Give tokio a moment to flush the response to the browser before exiting.
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        std::process::exit(0);
+    });
+
+    Ok(())
 }
 
 const MAX_LOG_BYTES: u64 = 64 * 1024; // 64KB tail

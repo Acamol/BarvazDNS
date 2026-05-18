@@ -264,13 +264,27 @@ body {
   font-size: 0.9rem;
   color: var(--text);
 }
+.update-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
 .update-banner a {
   color: var(--accent);
   text-decoration: none;
   font-weight: 600;
-  margin-left: auto;
 }
 .update-banner a:hover { text-decoration: underline; }
+.btn-update {
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn-update:hover { box-shadow: 0 0 12px var(--accent-glow); }
 .hidden { display: none; }
 
 /* Log viewer */

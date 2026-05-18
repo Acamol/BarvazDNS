@@ -143,6 +143,42 @@ async function checkForUpdate() {
   }
 }
 
+async function doUpdate() {
+  var btn = document.getElementById('btnDoUpdate');
+  btn.classList.add('loading');
+  btn.disabled = true;
+  try {
+    var res = await fetch('/api/do-update', { method: 'POST' });
+    var data = await res.json();
+    if (data.ok) {
+      var banner = document.getElementById('updateBanner');
+      banner.innerHTML = '<strong>&#128640; Updating\u2026</strong> The service is being updated. This page will reload automatically.';
+      banner.classList.remove('hidden');
+      setTimeout(tryReconnect, 10000);
+    } else {
+      toast(data.error || 'Update failed', 'error');
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
+  } catch (e) {
+    toast('Update request failed', 'error');
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+}
+
+function tryReconnect() {
+  fetch('/api/status')
+    .then(function(res) {
+      if (res.ok || res.status === 503) {
+        window.location.reload();
+      } else {
+        setTimeout(tryReconnect, 3000);
+      }
+    })
+    .catch(function() { setTimeout(tryReconnect, 3000); });
+}
+
 function escHtml(s) {
   const d = document.createElement('div');
   d.textContent = s;
